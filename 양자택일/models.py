@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -317,6 +319,91 @@ class Vote(models.Model):
 
     def __str__(self) -> str:
         return f'{self.question.title} - {self.session_key[:8]}…'
+
+
+class SavedInstantResult(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='saved_instant_results',
+        verbose_name='회원',
+    )
+    game_token = models.CharField(max_length=32, verbose_name='즉석 게임 식별자')
+    topic = models.CharField(max_length=120, verbose_name='게임 주제')
+    keywords = models.JSONField(default=list, verbose_name='키워드')
+    mbti = models.CharField(max_length=4, verbose_name='선택 캐릭터')
+    title = models.CharField(max_length=120, verbose_name='결과 타이틀')
+    description = models.TextField(verbose_name='결과 설명')
+    result_data = models.JSONField(default=dict, verbose_name='상세 결과')
+    game_data = models.JSONField(default=dict, verbose_name='게임 문항과 답변')
+    is_favorite = models.BooleanField(default=False, verbose_name='즐겨찾기')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='최초 저장일')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='최근 수정일')
+
+    class Meta:
+        verbose_name = '회원 즉석 게임 결과'
+        verbose_name_plural = '회원 즉석 게임 결과 목록'
+        ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'game_token'],
+                name='unique_saved_instant_result_per_user',
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.user} - {self.topic} ({self.mbti})'
+
+
+class ChoiceComparisonInvite(models.Model):
+    class Status(models.TextChoices):
+        OPEN = 'OPEN', '참여 대기'
+        COMPLETED = 'COMPLETED', '비교 완료'
+
+    id = models.UUIDField(
+        primary_key=True,
+        default=uuid.uuid4,
+        editable=False,
+        verbose_name='초대 코드',
+    )
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='created_choice_invites',
+        verbose_name='초대한 회원',
+    )
+    source_result = models.ForeignKey(
+        SavedInstantResult,
+        on_delete=models.CASCADE,
+        related_name='comparison_invites',
+        verbose_name='초대 원본 결과',
+    )
+    participant = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='joined_choice_invites',
+        verbose_name='참여 회원',
+    )
+    participant_answers = models.JSONField(default=list, verbose_name='참여자 답변')
+    participant_result = models.JSONField(default=dict, verbose_name='참여자 결과')
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.OPEN,
+        verbose_name='상태',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='초대 생성일')
+    completed_at = models.DateTimeField(null=True, blank=True, verbose_name='비교 완료일')
+
+    class Meta:
+        verbose_name = '친구·연인 함께하기 초대'
+        verbose_name_plural = '친구·연인 함께하기 초대 목록'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return f'{self.creator}의 {self.source_result.topic} 초대'
 
 
 class ResultTemplate(models.Model):

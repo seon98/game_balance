@@ -1,22 +1,58 @@
 {% extends 'base.html' %}
 
 {% block title %}양자택일 - 당신의 선택은?{% endblock %}
+{% block body_class %}home-search-page{% endblock %}
+
+{% block navigation %}
+<nav class="home-navbar">
+  <div class="container home-navbar-inner">
+    <a class="home-brand" href="{% url 'games:index' %}" aria-label="양자택일 홈">
+      <span class="home-brand-mark"><i class="bi bi-lightning-charge-fill"></i></span>
+      <span>양자택일</span>
+    </a>
+    {% if user.is_authenticated %}
+    <div class="d-flex align-items-center gap-2">
+      <a class="home-member-link" href="{% url 'games:progress' %}">
+        <i class="bi bi-clock-history"></i>
+        <span>내 기록</span>
+      </a>
+      <span class="home-user-name">{{ user.username }}님</span>
+      <form method="post" action="{% url 'games:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="home-login-button">
+          <i class="bi bi-box-arrow-right"></i>
+          <span>로그아웃</span>
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <a class="home-login-button" href="{% url 'games:login' %}">
+      <i class="bi bi-person"></i>
+      <span>로그인</span>
+    </a>
+    {% endif %}
+  </div>
+</nav>
+{% endblock %}
 
 {% block content %}
 <!-- 키워드 즉석 게임 -->
 <section class="instant-hero" id="quick-play">
   <div class="instant-orb instant-orb-a" aria-hidden="true"></div>
   <div class="instant-orb instant-orb-b" aria-hidden="true"></div>
+  <div class="home-search-visual home-search-visual-left" aria-hidden="true">
+    <i class="bi bi-search"></i>
+  </div>
+  <div class="home-search-visual home-search-visual-right" aria-hidden="true">
+    <i class="bi bi-globe2"></i>
+  </div>
   <div class="container position-relative">
     <div class="instant-hero-content mx-auto text-center">
-      <p class="instant-kicker mb-3">
-        <i class="bi bi-stars me-1"></i>KEYWORD BALANCE GAME
-      </p>
       <h1 class="instant-hero-title fw-black mb-3">
         어떤 양자택일을<br class="d-sm-none"> 찾고 계신가요?
       </h1>
       <p class="instant-hero-copy mb-4">
-        궁금한 주제를 입력하면 7개의 맞춤 질문을 만들고 바로 게임을 시작합니다.
+        원하는 주제를 입력하면 7개의 맞춤 질문을 만들고 바로 게임을 시작합니다.
       </p>
 
       <form
@@ -32,80 +68,22 @@
         <i class="bi bi-search instant-search-icon" aria-hidden="true"></i>
         {{ instant_search_form.keywords }}
         <button type="submit" class="instant-search-button" id="instantSearchButton">
-          <i class="bi bi-lightning-charge-fill me-1"></i>
-          <span>게임 생성</span>
+          <i class="bi bi-search me-2"></i>
+          <span>검색</span>
         </button>
       </form>
 
       <div class="instant-keywords mt-4" aria-label="추천 키워드">
-        <span class="instant-keyword-label">추천 주제</span>
+        <span class="instant-keyword-label">추천 키워드:</span>
         {% for keyword in recommended_keywords %}
         <button type="button" class="instant-keyword-chip" data-instant-keyword="{{ keyword }}">
           #{{ keyword }}
         </button>
         {% endfor %}
       </div>
-
-      <div class="instant-trust-row mt-4">
-        <span><i class="bi bi-shield-check me-1"></i>유해 콘텐츠 이중 검사</span>
-        <span><i class="bi bi-database-slash me-1"></i>공개 저장하지 않음</span>
-        <span><i class="bi bi-person-check me-1"></i>로그인 없이 바로 시작</span>
-      </div>
-
-      <div class="instant-secondary-actions mt-4">
-        <a href="{% url 'games:random' %}">
-          <i class="bi bi-shuffle me-1"></i>{% if completed_questions %}기존 게임 이어하기{% else %}랜덤 게임{% endif %}
-        </a>
-        <span aria-hidden="true">·</span>
-        <a href="{% url 'games:list' %}">
-          <i class="bi bi-grid me-1"></i>준비된 게임 보기
-        </a>
-      </div>
     </div>
-  </div>
-</section>
-
-<!-- 카테고리 -->
-{% if categories %}
-<section class="bg-light py-4">
-  <div class="container">
-    <div class="d-flex flex-wrap justify-content-center gap-2">
-      {% for cat in categories %}
-      <a href="{% url 'games:category' cat.slug %}" class="btn btn-outline-primary btn-sm rounded-pill">
-        {{ cat.name }}
-      </a>
-      {% endfor %}
-    </div>
-  </div>
-</section>
-{% endif %}
-
-<!-- 추천 주제 -->
-<section class="py-5">
-  <div class="container">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="h4 fw-bold mb-0">
-        <i class="bi bi-fire text-danger me-2"></i>지금 시작할 양자택일
-      </h2>
-      <a href="{% url 'games:list' %}" class="btn btn-sm btn-outline-secondary">
-        전체보기 <i class="bi bi-chevron-right"></i>
-      </a>
-    </div>
-
-    {% if featured_game_sets %}
-    <div class="row g-4">
-      {% for game_set in featured_game_sets %}
-      <div class="col-sm-6 col-lg-4">
-        {% include 'games/_set_card.html' %}
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="text-center py-5 text-muted">
-      <i class="bi bi-emoji-smile display-3 d-block mb-3"></i>
-      <p>아직 게임이 없어요. 관리자 페이지에서 추가해보세요!</p>
-    </div>
-    {% endif %}
   </div>
 </section>
 {% endblock %}
+
+{% block footer %}{% endblock %}

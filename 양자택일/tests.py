@@ -18,6 +18,7 @@ from .models import (
     Question,
     ResultGrade,
     ResultTemplate,
+    SavedInstantResult,
     Vote,
 )
 from .openai_question_generator import (
@@ -492,6 +493,24 @@ class AccountFlowTest(TestCase):
         )
         self.assertTrue(get_user_model().objects.filter(username='creator').exists())
         self.assertEqual(int(self.client.session['_auth_user_id']), get_user_model().objects.get(username='creator').pk)
+
+    def test_signup_returns_to_requested_safe_page(self) -> None:
+        result_url = reverse('games:instant_result')
+        response = self.client.post(
+            f"{reverse('games:signup')}?next={result_url}",
+            {
+                'username': 'archive-member',
+                'email': 'archive@example.com',
+                'password1': 'A-strong-password-2026',
+                'password2': 'A-strong-password-2026',
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            result_url,
+            fetch_redirect_response=False,
+        )
 
     def test_game_creation_requires_login(self) -> None:
         response = self.client.get(reverse('games:create'))
@@ -1005,10 +1024,14 @@ class InstantGameFlowTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '어떤 양자택일을')
-        self.assertContains(response, '원하는 주제를 입력하세요')
+        self.assertContains(response, '원하는 키워드를 입력하세요')
         self.assertContains(response, self.generate_url)
         self.assertContains(response, '#여행')
         self.assertNotContains(response, '게임 만들기')
+        self.assertNotContains(response, '전체 게임')
+        self.assertNotContains(response, '랜덤 게임')
+        self.assertNotContains(response, '지금 시작할 양자택일')
+        self.assertNotContains(response, '준비된 게임 보기')
 
     def test_anonymous_keyword_generates_session_game_without_saving(self) -> None:
         response = self.generate_game()
@@ -1098,7 +1121,7 @@ class InstantGameFlowTest(TestCase):
             fetch_redirect_response=False,
         )
 
-    def test_completed_instant_game_shows_type_and_choice_analysis(self) -> None:
+    def test_anonymous_result_shows_basic_result_and_member_invitation(self) -> None:
         self.generate_game('야구')
         choices = ['A', 'B', 'A', 'B', 'A', 'B', 'A']
         for question_number, choice_code in enumerate(choices, start=1):
@@ -1117,17 +1140,89 @@ class InstantGameFlowTest(TestCase):
         )
         result_page = self.client.get(reverse('games:instant_result'))
         self.assertContains(result_page, '플레이어님의 선택 속')
-        self.assertContains(result_page, '결정적 선택')
-        self.assertContains(result_page, '나의 선택 사용설명서')
-        self.assertContains(result_page, '4축 선택 나침반')
-        self.assertContains(result_page, '선택에서 드러난 강점')
-        self.assertContains(result_page, '다음 선택을 위한 한 줄')
+        self.assertContains(result_page, '회원이 되면 상세 결과가 열려요')
+        self.assertContains(result_page, '무료 회원가입')
+        self.assertNotContains(result_page, '나의 선택 사용설명서')
+        self.assertNotContains(result_page, '4축 선택 나침반')
         self.assertNotContains(result_page, '코믹 해석')
         self.assertNotContains(result_page, '패턴 분석')
+        self.assertNotContains(result_page, '나의 선택 모아보기')
         self.assertContains(result_page, '공식 MBTI 검사나 심리 진단이 아닌')
+        self.assertFalse(SavedInstantResult.objects.exists())
         self.assertFalse(GameSet.objects.exists())
         self.assertFalse(Question.objects.exists())
         self.assertFalse(Vote.objects.exists())
+
+    def test_member_gets_detailed_result_and_saved_archive(self) -> None:
+        user = get_user_model().objects.create_user(
+            username='member',
+            password='A-strong-password-2026',
+        )
+        self.client.force_login(user)
+        self.generate_game('여행')
+        for question_number in range(1, 8):
+            self.client.post(
+                reverse(
+                    'games:instant_answer',
+                    kwargs={'question_number': question_number},
+                ),
+                {'choice': 'A' if question_number % 2 else 'B'},
+            )
+
+        result_page = self.client.get(reverse('games:instant_result'))
+        refreshed_page = self.client.get(reverse('games:instant_result'))
+
+        self.assertContains(result_page, 'member님의 선택 속')
+        self.assertContains(result_page, '결정적 선택')
+        self.assertContains(result_page, '나의 선택 사용설명서')
+        self.assertContains(result_page, '4축 선택 나침반')
+        self.assertContains(result_page, '내 기록에 저장됨')
+        self.assertEqual(refreshed_page.status_code, 200)
+        self.assertEqual(SavedInstantResult.objects.filter(user=user).count(), 1)
+
+        saved_result = SavedInstantResult.objects.get(user=user)
+        self.assertEqual(saved_result.mbti, 'ENTP')
+        archive_page = self.client.get(reverse('games:progress'))
+        self.assertContains(archive_page, saved_result.title)
+        self.assertContains(archive_page, '선택에서 드러난 강점')
+
+    def test_member_can_delete_only_their_saved_result(self) -> None:
+        owner = get_user_model().objects.create_user(
+            username='owner',
+            password='A-strong-password-2026',
+        )
+        other = get_user_model().objects.create_user(
+            username='other',
+            password='A-strong-password-2026',
+        )
+        saved_result = SavedInstantResult.objects.create(
+            user=owner,
+            game_token='a' * 32,
+            topic='여행 선택 보고서',
+            keywords=['여행'],
+            mbti='ENTP',
+            title='반대편 문부터 여는 토론가',
+            description='재미를 위한 결과입니다.',
+            result_data={'decision_tip': '결정 마감부터 정해보세요.'},
+        )
+        delete_url = reverse(
+            'games:saved_instant_result_delete',
+            kwargs={'result_id': saved_result.pk},
+        )
+        self.client.force_login(other)
+
+        self.assertEqual(self.client.post(delete_url).status_code, 404)
+        self.assertTrue(SavedInstantResult.objects.filter(pk=saved_result.pk).exists())
+
+        self.client.force_login(owner)
+        response = self.client.post(delete_url)
+
+        self.assertRedirects(
+            response,
+            reverse('games:progress'),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(SavedInstantResult.objects.filter(pk=saved_result.pk).exists())
 
     def test_instant_game_answer_accepts_browser_csrf_cookie_flow(self) -> None:
         csrf_client = Client(enforce_csrf_checks=True)

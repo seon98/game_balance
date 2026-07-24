@@ -5,7 +5,16 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils.html import format_html, format_html_join
 
-from .models import Category, Choice, GameSet, Question, ResultTemplate, Vote
+from .models import (
+    Category,
+    ChoiceComparisonInvite,
+    Choice,
+    GameSet,
+    Question,
+    ResultTemplate,
+    SavedInstantResult,
+    Vote,
+)
 
 
 class ChoiceInline(admin.TabularInline):
@@ -167,6 +176,58 @@ class VoteAdmin(admin.ModelAdmin):
     @admin.display(description='세션 키')
     def session_key_short(self, obj: Vote) -> str:
         return obj.session_key[:12] + '…'
+
+    def has_add_permission(self, request):  # type: ignore[override]
+        return False
+
+
+@admin.register(SavedInstantResult)
+class SavedInstantResultAdmin(admin.ModelAdmin):
+    list_display = ['user', 'topic', 'mbti', 'title', 'is_favorite', 'updated_at']
+    list_filter = ['mbti', 'is_favorite', 'updated_at']
+    search_fields = ['user__username', 'topic', 'title']
+    readonly_fields = [
+        'user',
+        'game_token',
+        'topic',
+        'keywords',
+        'mbti',
+        'title',
+        'description',
+        'result_data',
+        'game_data',
+        'is_favorite',
+        'created_at',
+        'updated_at',
+    ]
+
+    def has_add_permission(self, request):  # type: ignore[override]
+        return False
+
+
+@admin.register(ChoiceComparisonInvite)
+class ChoiceComparisonInviteAdmin(admin.ModelAdmin):
+    list_display = [
+        'creator',
+        'participant',
+        'source_result',
+        'status',
+        'created_at',
+        'completed_at',
+    ]
+    list_filter = ['status', 'created_at']
+    search_fields = ['creator__username', 'participant__username', 'source_result__topic']
+    readonly_fields = [
+        'id',
+        'creator',
+        'participant',
+        'source_result',
+        'participant_answers',
+        'participant_result',
+        'status',
+        'created_at',
+        'completed_at',
+    ]
 
     def has_add_permission(self, request):  # type: ignore[override]
         return False

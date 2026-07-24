@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import re
+import uuid
 from typing import Any
 
 from django.conf import settings
@@ -15,8 +16,9 @@ from django.db import transaction
 from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.urls import reverse
 from django.utils.decorators import method_decorator
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.csrf import csrf_failure as default_csrf_failure
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -31,7 +33,15 @@ from .forms import (
     SignupForm,
     VoteForm,
 )
-from .models import Category, Choice, GameSet, Question, ResultGrade, Vote
+from .models import (
+    Category,
+    Choice,
+    GameSet,
+    Question,
+    ResultGrade,
+    SavedInstantResult,
+    Vote,
+)
 from .moderation import requires_reference
 from .openai_mbti_analyzer import analyze_mbti_with_fallback
 from .question_generator import generate_question_drafts_with_fallback
@@ -77,6 +87,20 @@ def _ensure_session(request: HttpRequest) -> str:
 
 def _result_session_key(question_id: int) -> str:
     return f'result_{question_id}'
+
+
+def _safe_next_url(request: HttpRequest) -> str:
+    next_url = request.POST.get('next') or request.GET.get('next')
+    if (
+        next_url
+        and url_has_allowed_host_and_scheme(
+            url=next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        )
+    ):
+        return next_url
+    return reverse('games:index')
 
 
 def _get_instant_game(request: HttpRequest) -> dict[str, Any] | None:
@@ -211,19 +235,6 @@ class IndexView(TemplateView):
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        featured_game_sets = list(_public_game_sets().order_by('-is_official', '-created_at')[:6])
-        context['categories'] = Category.objects.all()
-        context['total_questions'] = _public_questions().count()
-        completed_ids = _completed_question_ids(self.request)
-        _add_game_set_progress(featured_game_sets, completed_ids)
-        context['featured_game_sets'] = featured_game_sets
-        context['total_game_sets'] = _public_game_sets().count()
-        context['completed_question_ids'] = completed_ids
-        context['completed_questions'] = len(completed_ids)
-        context['remaining_questions'] = max(
-            context['total_questions'] - len(completed_ids),
-            0,
-        )
         previous_query = self.request.session.pop('instant_game_query', '')
         context['instant_search_form'] = InstantGameSearchForm(
             initial={'keywords': previous_query},
@@ -294,6 +305,7 @@ class InstantGameGenerateView(View):
             return redirect('games:index')
 
         request.session[_INSTANT_GAME_SESSION_KEY] = {
+            'token': uuid.uuid4().hex,
             'title': result.get('title_suggestion', '나만의 양자택일'),
             'description': result.get('description_suggestion', ''),
             'keywords': keywords,
@@ -436,17 +448,6 @@ class InstantGameResultView(TemplateView):
             context['next_required_question'] = answers.index(None) + 1
             return context
 
-        answer_items = []
-        for question, choice_code in zip(game['questions'], answers, strict=True):
-            choice_field = 'choice_a' if choice_code == Choice.Code.A else 'choice_b'
-            answer_items.append({
-                'question': question,
-                'choice': {
-                    'code': choice_code,
-                    'text': question[choice_field],
-                },
-            })
-
         display_name = (
             self.request.user.username
             if self.request.user.is_authenticated
@@ -479,12 +480,32 @@ class InstantGameResultView(TemplateView):
             )
             game['mbti_result'] = mbti_result
             self.request.session.modified = True
+        result_saved = False
+        if self.request.user.is_authenticated:
+            game_token = game.get('token')
+            if not isinstance(game_token, str) or len(game_token) != 32:
+                game_token = uuid.uuid4().hex
+                game['token'] = game_token
+                self.request.session.modified = True
+            SavedInstantResult.objects.update_or_create(
+                user=self.request.user,
+                game_token=game_token,
+                defaults={
+                    'topic': str(game.get('title', '나만의 양자택일'))[:120],
+                    'keywords': list(game.get('keywords', []))[:5],
+                    'mbti': mbti_result['mbti'],
+                    'title': mbti_result['title'],
+                    'description': mbti_result['description'],
+                    'result_data': mbti_result,
+                },
+            )
+            result_saved = True
         context.update({
             'instant_game': game,
             'mbti_result': mbti_result,
             'display_name': display_name,
             'question_count': len(game['questions']),
-            'answer_items': answer_items,
+            'result_saved': result_saved,
             'categories': Category.objects.all(),
         })
         return context
@@ -838,6 +859,15 @@ class ProgressView(TemplateView):
             'category_progress': category_progress,
             'recent_results': recent_results,
             'all_completed': total_questions > 0 and remaining_questions == 0,
+            'saved_instant_results': (
+                list(
+                    SavedInstantResult.objects
+                    .filter(user=self.request.user)
+                    .order_by('-updated_at')[:30]
+                )
+                if self.request.user.is_authenticated
+                else []
+            ),
         })
         return context
 
@@ -849,18 +879,34 @@ class ProgressView(TemplateView):
 class SignupView(CreateView):
     form_class = SignupForm
     template_name = 'registration/signup.html'
-    success_url = reverse_lazy('games:index')
-
     def dispatch(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         if request.user.is_authenticated:
-            return redirect('games:index')
+            return redirect(_safe_next_url(request))
         return super().dispatch(request, *args, **kwargs)
+
+    def get_success_url(self) -> str:
+        return _safe_next_url(self.request)
 
     def form_valid(self, form: SignupForm) -> HttpResponse:
         response = super().form_valid(form)
         login(self.request, self.object)
-        messages.success(self.request, '회원가입이 완료되었습니다. 지금 나만의 게임을 만들어보세요!')
+        messages.success(
+            self.request,
+            '회원가입이 완료되었습니다. 이제 결과가 내 기록에 자동 저장됩니다.',
+        )
         return response
+
+
+class SavedInstantResultDeleteView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest, result_id: int) -> HttpResponse:
+        saved_result = get_object_or_404(
+            SavedInstantResult,
+            pk=result_id,
+            user=request.user,
+        )
+        saved_result.delete()
+        messages.success(request, '선택 결과 기록을 삭제했습니다.')
+        return redirect('games:progress')
 
 
 class GameSetCreateView(LoginRequiredMixin, View):

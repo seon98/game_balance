@@ -120,9 +120,9 @@ class InstantGameSearchForm(forms.Form):
         widget=forms.TextInput(attrs={
             'id': 'instantKeywords',
             'class': 'instant-search-input',
-            'placeholder': '원하는 주제를 입력하세요. 예: 여행, 친구, 야구',
+            'placeholder': '원하는 키워드를 입력하세요...',
             'autocomplete': 'off',
-            'aria-label': '바로 플레이할 주제 키워드',
+            'aria-label': '바로 플레이할 키워드',
         }),
     )
 

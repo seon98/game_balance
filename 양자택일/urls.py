@@ -35,6 +35,11 @@ urlpatterns = [
     path('games/<int:question_id>/vote/', views.VoteView.as_view(), name='vote'),
     path('games/<int:question_id>/result/', views.ResultView.as_view(), name='result'),
     path('my-results/', views.ProgressView.as_view(), name='progress'),
+    path(
+        'my-results/instant/<int:result_id>/delete/',
+        views.SavedInstantResultDeleteView.as_view(),
+        name='saved_instant_result_delete',
+    ),
     path('games/create/', views.GameSetCreateView.as_view(), name='create'),
     path(
         'games/create/generate/',

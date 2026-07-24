@@ -1,71 +1,27 @@
 {% extends 'base.html' %}
 
-{% block title %}내 플레이 기록 - 양자택일{% endblock %}
+{% block title %}내 결과 기록 - 양자택일{% endblock %}
 
 {% block content %}
-<section class="progress-hero py-5">
+<section class="member-history-hero py-5">
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-9">
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3">
-          <div>
-            <span class="eyebrow">MY BALANCE LOG</span>
-            <h1 class="display-6 fw-black mt-2 mb-2">내 플레이 기록</h1>
-            <p class="text-muted mb-0">
-              {% if all_completed %}
-              모든 질문을 완료했어요. 당신만의 선택 지도가 완성됐습니다!
-              {% elif completed_questions %}
-              지금까지의 선택을 확인하고 남은 게임을 이어가세요.
-              {% else %}
-              첫 번째 선택을 하면 이곳에 나만의 기록이 쌓여요.
-              {% endif %}
-            </p>
-          </div>
-          {% if remaining_questions %}
-          <a href="{% url 'games:random' %}" class="btn btn-warning btn-lg fw-bold px-4">
-            <i class="bi bi-play-fill me-1"></i>{% if completed_questions %}이어서 플레이{% else %}첫 게임 시작{% endif %}
-          </a>
+        <span class="eyebrow">MY CHOICE ARCHIVE</span>
+        <h1 class="display-6 fw-black mt-2 mb-2">
+          {% if user.is_authenticated %}
+          {{ user.username }}님의 결과 기록
+          {% else %}
+          나만의 결과 기록
           {% endif %}
-        </div>
-
-        <div class="progress-overview card border-0 shadow-sm rounded-4 mt-4">
-          <div class="card-body p-4 p-md-5">
-            <div class="d-flex justify-content-between align-items-end mb-3">
-              <div>
-                <p class="text-muted small mb-1">전체 진행률</p>
-                <strong class="display-5 fw-black">{{ completion_percentage }}%</strong>
-              </div>
-              <p class="mb-1 text-muted">
-                <strong class="text-dark">{{ completed_questions }}</strong> / {{ total_questions }} 완료
-              </p>
-            </div>
-            <div class="progress progress-thick" role="progressbar" aria-label="전체 게임 진행률"
-                 aria-valuenow="{{ completion_percentage }}" aria-valuemin="0" aria-valuemax="100">
-              <div class="progress-bar progress-bar-striped bg-warning"
-                   style="width:{{ completion_percentage }}%"></div>
-            </div>
-            <div class="row g-3 mt-3 text-center">
-              <div class="col-4">
-                <div class="stat-tile">
-                  <strong>{{ total_questions }}</strong>
-                  <span>전체 게임</span>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="stat-tile stat-complete">
-                  <strong>{{ completed_questions }}</strong>
-                  <span>완료</span>
-                </div>
-              </div>
-              <div class="col-4">
-                <div class="stat-tile stat-remaining">
-                  <strong>{{ remaining_questions }}</strong>
-                  <span>남은 게임</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </h1>
+        <p class="text-muted mb-0">
+          {% if user.is_authenticated %}
+          키워드 게임을 완료하면 선택 캐릭터와 사용설명서가 이곳에 자동으로 저장됩니다.
+          {% else %}
+          회원이 되면 플레이할 때마다 결과가 쌓이고 언제든 다시 확인할 수 있습니다.
+          {% endif %}
+        </p>
       </div>
     </div>
   </div>
@@ -73,83 +29,128 @@
 
 <section class="pb-5">
   <div class="container">
-    <div class="row g-4 justify-content-center">
-      <div class="col-lg-4">
-        <div class="card border-0 shadow-sm rounded-4 h-100">
-          <div class="card-body p-4">
-            <h2 class="h5 fw-bold mb-4">
-              <i class="bi bi-tags text-primary me-2"></i>카테고리별 진행
-            </h2>
-            {% for item in category_progress %}
-              {% if item.total %}
-              <div class="category-progress-item mb-4">
-                <div class="d-flex justify-content-between small mb-2">
-                  <a href="{% url 'games:category' item.category.slug %}" class="fw-bold text-dark text-decoration-none">
-                    {{ item.category.name }}
-                  </a>
-                  <span class="text-muted">{{ item.completed }}/{{ item.total }}</span>
+    <div class="row justify-content-center">
+      <div class="col-lg-9">
+        {% if user.is_authenticated %}
+          {% if saved_instant_results %}
+          <div class="d-flex justify-content-between align-items-center gap-3 mb-4">
+            <h2 class="h4 fw-black mb-0">저장된 키워드 결과</h2>
+            <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3 py-2">
+              {{ saved_instant_results|length }}개
+            </span>
+          </div>
+
+          <div class="saved-result-list">
+            {% for result in saved_instant_results %}
+            <details class="saved-result-card">
+              <summary>
+                <div class="saved-result-code" aria-label="MBTI {{ result.mbti }}">
+                  {% for letter in result.mbti %}<span>{{ letter }}</span>{% endfor %}
                 </div>
-                <div class="progress" role="progressbar" aria-label="{{ item.category.name }} 진행률"
-                     aria-valuenow="{{ item.percentage }}" aria-valuemin="0" aria-valuemax="100">
-                  <div class="progress-bar {% if item.percentage == 100 %}bg-success{% else %}bg-primary{% endif %}"
-                       style="width:{{ item.percentage }}%"></div>
+                <div class="saved-result-summary">
+                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                    <span class="small text-primary fw-bold">{{ result.topic }}</span>
+                    <span class="x-small text-muted">{{ result.updated_at|date:"Y.m.d H:i" }}</span>
+                  </div>
+                  <h2 class="h5 fw-black mb-1">“{{ result.title }}”</h2>
+                  <p class="small text-muted mb-0">{{ result.description|truncatechars:110 }}</p>
+                </div>
+                <i class="bi bi-chevron-down saved-result-chevron" aria-hidden="true"></i>
+              </summary>
+
+              <div class="saved-result-detail">
+                <p class="saved-result-description">{{ result.description }}</p>
+                <div class="saved-result-manual">
+                  <article>
+                    <strong><i class="bi bi-gem"></i> 선택에서 드러난 강점</strong>
+                    <p>{{ result.result_data.strength }}</p>
+                  </article>
+                  <article>
+                    <strong><i class="bi bi-exclamation-circle"></i> 놓치기 쉬운 함정</strong>
+                    <p>{{ result.result_data.blind_spot }}</p>
+                  </article>
+                  <article>
+                    <strong><i class="bi bi-chat-square-dots"></i> 갈등 상황의 반응</strong>
+                    <p>{{ result.result_data.conflict_style }}</p>
+                  </article>
+                  <article>
+                    <strong><i class="bi bi-people"></i> 함께 결정하기 편한 스타일</strong>
+                    <p>{{ result.result_data.compatible_style }}</p>
+                  </article>
+                </div>
+                <div class="saved-result-tip">
+                  <strong><i class="bi bi-compass"></i> 다음 선택을 위한 한 줄</strong>
+                  <p class="mb-0">{{ result.result_data.decision_tip }}</p>
+                </div>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
+                  <div class="d-flex flex-wrap gap-2">
+                    {% for keyword in result.keywords %}
+                    <span class="badge rounded-pill bg-light text-secondary">#{{ keyword }}</span>
+                    {% endfor %}
+                  </div>
+                  <form
+                    method="post"
+                    action="{% url 'games:saved_instant_result_delete' result.pk %}"
+                  >
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-trash3 me-1"></i>기록 삭제
+                    </button>
+                  </form>
                 </div>
               </div>
-              {% endif %}
-            {% empty %}
-            <p class="text-muted mb-0">등록된 카테고리가 없습니다.</p>
+            </details>
             {% endfor %}
           </div>
-        </div>
-      </div>
-
-      <div class="col-lg-6">
-        <div class="card border-0 shadow-sm rounded-4">
-          <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <h2 class="h5 fw-bold mb-0">
-                <i class="bi bi-clock-history text-primary me-2"></i>최근 선택
-              </h2>
-              <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary">{{ completed_questions }}개</span>
-            </div>
-
-            {% if recent_results %}
-            <div class="result-history">
-              {% for item in recent_results %}
-              <a href="{% url 'games:result' item.vote.question_id %}"
-                 class="history-item d-block text-decoration-none {% if not forloop.last %}border-bottom{% endif %}">
-                <div class="d-flex justify-content-between gap-3">
-                  <div class="min-w-0">
-                    {% if item.vote.question.category %}
-                    <span class="small text-primary">{{ item.vote.question.category.name }}</span>
-                    {% endif %}
-                    <h3 class="h6 fw-bold text-dark mt-1 mb-2">{{ item.vote.question.title }}</h3>
-                    <p class="small text-muted mb-0">
-                      나의 선택 · <strong>{{ item.vote.choice.text }}</strong>
-                    </p>
-                  </div>
-                  <div class="text-end flex-shrink-0">
-                    <span class="rarity-badge rarity-badge-sm grade-{{ item.grade|lower }}">
-                      {{ item.grade_display }}
-                    </span>
-                    <p class="fw-bold text-dark mt-2 mb-0">{{ item.percentage }}%</p>
-                  </div>
-                </div>
-              </a>
-              {% endfor %}
-            </div>
-            {% else %}
-            <div class="text-center py-5">
+          {% else %}
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-5 text-center">
               <div class="empty-state-icon mx-auto mb-3">
-                <i class="bi bi-lightning-charge"></i>
+                <i class="bi bi-clock-history"></i>
               </div>
-              <h3 class="h6 fw-bold">아직 선택 기록이 없어요</h3>
-              <p class="text-muted small mb-4">두 가지 선택지 중 마음이 가는 쪽을 골라보세요.</p>
-              <a href="{% url 'games:random' %}" class="btn btn-primary fw-bold">첫 게임 시작하기</a>
+              <h2 class="h5 fw-black">아직 저장된 결과가 없어요</h2>
+              <p class="text-muted mb-4">키워드 게임을 완료하면 첫 결과가 자동으로 저장됩니다.</p>
+              <a href="{% url 'games:index' %}" class="btn btn-primary fw-bold px-4">
+                첫 키워드 게임 시작하기
+              </a>
             </div>
-            {% endif %}
+          </div>
+          {% endif %}
+        {% else %}
+        <div class="card member-history-gate border-0 shadow-sm rounded-4">
+          <div class="card-body p-4 p-md-5 text-center">
+            <span class="member-lock-icon mb-3"><i class="bi bi-cloud-lock"></i></span>
+            <h2 class="h4 fw-black mb-3">로그인하고 결과를 계속 보관하세요</h2>
+            <p class="text-muted mb-4">
+              결과 자동 저장, 지난 사용설명서 다시보기, 여러 기기에서 기록 확인을 이용할 수 있습니다.
+            </p>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+              <a
+                href="{% url 'games:login' %}?next={{ request.path|urlencode }}"
+                class="btn btn-primary fw-bold px-4"
+              >로그인</a>
+              <a
+                href="{% url 'games:signup' %}?next={{ request.path|urlencode }}"
+                class="btn btn-outline-primary fw-bold px-4"
+              >무료 회원가입</a>
+            </div>
           </div>
         </div>
+        {% endif %}
+
+        {% if total_questions %}
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <strong>준비된 게임 진행률</strong>
+              <span>{{ completed_questions }} / {{ total_questions }} 완료</span>
+            </div>
+            <div class="progress" role="progressbar" aria-label="준비된 게임 진행률">
+              <div class="progress-bar bg-warning" style="width:{{ completion_percentage }}%"></div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>

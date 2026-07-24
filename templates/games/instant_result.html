@@ -25,6 +25,11 @@
               <i class="bi bi-lightning-charge me-1"></i>선택 기록 분석
               {% endif %}
             </span>
+            {% if result_saved %}
+            <span class="badge rounded-pill bg-success mb-3 ms-1">
+              <i class="bi bi-cloud-check me-1"></i>내 기록에 저장됨
+            </span>
+            {% endif %}
             <div class="mbti-code mb-3" aria-label="선택 패턴 MBTI {{ mbti_result.mbti }}">
               {% for letter in mbti_result.mbti %}
               <span>{{ letter }}</span>
@@ -38,6 +43,7 @@
           </div>
         </div>
 
+        {% if user.is_authenticated %}
         <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
           <div class="card-body p-4 p-md-5">
             <div class="result-section-heading mb-4">
@@ -171,36 +177,52 @@
               {% endfor %}
             </div>
 
-            <div class="share-box rounded-3 p-3 mt-4 text-center">
-              <p id="shareText" class="fw-bold mb-3">
-                나는 양자택일 {{ instant_game.title }}에서 {{ mbti_result.mbti }}
-                ‘{{ mbti_result.title }}’! 당신의 선택 캐릭터는?
-              </p>
-              <button type="button" class="btn btn-outline-secondary btn-sm" id="copyBtn" onclick="copyShareText()">
-                <i class="bi bi-clipboard me-1"></i>결과 복사
-              </button>
+          </div>
+        </div>
+        {% else %}
+        <div class="card member-unlock-card border-0 shadow-sm rounded-4 mt-4">
+          <div class="card-body p-4 p-md-5 text-center">
+            <span class="member-lock-icon mb-3">
+              <i class="bi bi-lock-fill"></i>
+            </span>
+            <p class="eyebrow mb-2">MEMBER DETAIL REPORT</p>
+            <h2 class="h4 fw-black mb-3">회원이 되면 상세 결과가 열려요</h2>
+            <p class="text-muted mb-4">
+              결정적 선택, 선택 사용설명서, 4축 나침반을 확인하고<br class="d-none d-sm-block">
+              이번 결과를 내 기록에 계속 보관할 수 있습니다.
+            </p>
+            <div class="member-benefit-preview mb-4">
+              <span><i class="bi bi-lightning-fill"></i> 결정적 선택</span>
+              <span><i class="bi bi-journal-check"></i> 선택 사용설명서</span>
+              <span><i class="bi bi-bar-chart-steps"></i> 4축 나침반</span>
+              <span><i class="bi bi-clock-history"></i> 결과 자동 저장</span>
+            </div>
+            <div class="d-flex flex-wrap justify-content-center gap-2">
+              <a
+                href="{% url 'games:login' %}?next={{ request.path|urlencode }}"
+                class="btn btn-primary fw-bold px-4"
+              >
+                로그인하고 상세 결과 보기
+              </a>
+              <a
+                href="{% url 'games:signup' %}?next={{ request.path|urlencode }}"
+                class="btn btn-outline-primary fw-bold px-4"
+              >
+                무료 회원가입
+              </a>
             </div>
           </div>
         </div>
+        {% endif %}
 
-        <div class="card border-0 shadow-sm rounded-4 mt-4">
-          <div class="card-body p-4">
-            <h2 class="h5 fw-bold mb-4">
-              <i class="bi bi-list-check me-2 text-primary"></i>나의 선택 모아보기
-            </h2>
-            {% for item in answer_items %}
-            <div class="d-flex justify-content-between gap-3 py-3 {% if not forloop.last %}border-bottom{% endif %}">
-              <div>
-                <span class="small text-muted">{{ forloop.counter }}번</span>
-                <p class="fw-bold mb-1">{{ item.question.title }}</p>
-                <p class="small text-muted mb-0">{{ item.choice.text }}</p>
-              </div>
-              <span class="choice-code-badge {% if item.choice.code == 'A' %}badge-a{% else %}badge-b{% endif %} flex-shrink-0">
-                {{ item.choice.code }}
-              </span>
-            </div>
-            {% endfor %}
-          </div>
+        <div class="share-box rounded-3 p-3 mt-4 text-center">
+          <p id="shareText" class="fw-bold mb-3">
+            나는 양자택일 {{ instant_game.title }}에서 {{ mbti_result.mbti }}
+            ‘{{ mbti_result.title }}’! 당신의 선택 캐릭터는?
+          </p>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="copyBtn" onclick="copyShareText()">
+            <i class="bi bi-clipboard me-1"></i>결과 복사
+          </button>
         </div>
 
         <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
