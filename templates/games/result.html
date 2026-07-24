@@ -132,8 +132,8 @@
           <i class="bi bi-arrow-right-circle me-2"></i>다음 랜덤 게임
         </a>
         {% else %}
-        <a href="{% url 'games:random' %}" class="btn btn-warning fw-bold px-4">
-          <i class="bi bi-shuffle me-2"></i>다른 게임 하기
+        <a href="{% url 'games:progress' %}" class="btn btn-warning fw-bold px-4">
+          <i class="bi bi-trophy me-2"></i>완료 기록 보기
         </a>
         {% endif %}
         <a href="{% url 'games:list' %}" class="btn btn-outline-secondary px-4">
@@ -144,24 +144,4 @@
     </div>
   </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script>
-function copyShareText() {
-  const text = document.getElementById('shareText').innerText;
-  navigator.clipboard.writeText(text).then(function() {
-    const btn = document.getElementById('copyBtn');
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>복사됨!';
-    btn.classList.replace('btn-outline-secondary', 'btn-success');
-    setTimeout(function() {
-      btn.innerHTML = original;
-      btn.classList.replace('btn-success', 'btn-outline-secondary');
-    }, 2000);
-  }).catch(function() {
-    alert('클립보드 복사에 실패했습니다. 직접 선택해서 복사해주세요.');
-  });
-}
-</script>
 {% endblock %}

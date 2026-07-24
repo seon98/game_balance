@@ -11,5 +11,6 @@ urlpatterns = [
     path('games/<int:question_id>/', views.QuestionDetailView.as_view(), name='detail'),
     path('games/<int:question_id>/vote/', views.VoteView.as_view(), name='vote'),
     path('games/<int:question_id>/result/', views.ResultView.as_view(), name='result'),
+    path('my-results/', views.ProgressView.as_view(), name='progress'),
     path('categories/<slug:slug>/', views.CategoryListView.as_view(), name='category'),
 ]

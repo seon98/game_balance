@@ -23,8 +23,9 @@
 | 프론트엔드 | 순수 CSS (자체 구현) | **Bootstrap 5** |
 | 모델 | BalanceGame + Choice (2개) | **Category, Question, Choice, Vote, ResultTemplate** |
 | 결과 | 투표 비율만 표시 | **7단계 등급 + 해석 문구 + 키워드 + 공유 문구** |
+| 플레이 흐름 | 랜덤 질문 반복 가능 | **완료 질문 제외 + 진행률 + 선택 기록** |
 | 환경변수 | 하드코딩 | **django-environ (.env)** |
-| 테스트 | 없음 | **16개 테스트 (100% 통과)** |
+| 테스트 | 없음 | **20개 테스트 (100% 통과)** |
 
 ### 핵심 설계 결정
 
@@ -111,11 +112,13 @@ game/
 │   ├── games/
 │   │   ├── list.html            # 게임 목록
 │   │   ├── detail.html          # 질문 상세 (투표)
-│   │   └── result.html          # 투표 결과
+│   │   ├── result.html          # 투표 결과
+│   │   └── progress.html        # 내 플레이 진행률·최근 선택
 │   └── categories/
 │       └── list.html            # 카테고리별 목록
 └── static/
     ├── css/main.css             # 커스텀 스타일 (희귀도 배지 등)
+    ├── images/og-balance-game.png # SNS 링크 미리보기 이미지
     └── js/main.js               # 클립보드 복사
 ```
 
@@ -131,6 +134,7 @@ game/
 | `/games/<id>/` | `QuestionDetailView` | 질문 상세 + 투표 |
 | `/games/<id>/vote/` | `VoteView` | 투표 처리 (POST 전용) |
 | `/games/<id>/result/` | `ResultView` | 결과 페이지 |
+| `/my-results/` | `ProgressView` | 내 진행률·카테고리별 현황·최근 선택 |
 | `/categories/<slug>/` | `CategoryListView` | 카테고리별 목록 |
 | `/admin/` | Django Admin | 관리자 페이지 |
 

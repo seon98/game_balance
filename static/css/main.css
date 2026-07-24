@@ -7,14 +7,26 @@
 
 body {
   font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  background: #f7f8fc;
 }
 
 .x-small { font-size: 0.75rem; }
+.fw-black { font-weight: 900; }
+.min-w-0 { min-width: 0; }
 
 /* ===== 히어로 섹션 ===== */
 .hero-section {
   background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #1565c0 100%);
   padding: 5rem 0;
+}
+
+.hero-progress {
+  width: min(100%, 24rem);
+}
+
+.hero-progress .progress {
+  height: 0.45rem;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 /* ===== 게임 카드 ===== */
@@ -146,6 +158,105 @@ body {
   font-weight: 700;
   font-size: 0.9rem;
   letter-spacing: 0.04em;
+}
+
+.rarity-badge-sm {
+  padding: 0.32rem 0.65rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+/* ===== 내 플레이 기록 ===== */
+.progress-hero {
+  background:
+    radial-gradient(circle at 85% 15%, rgba(255, 193, 7, 0.18), transparent 24rem),
+    linear-gradient(180deg, #eef3ff 0%, #f7f8fc 100%);
+}
+
+.eyebrow {
+  color: #3451b2;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.progress-overview {
+  overflow: hidden;
+}
+
+.progress-overview::before {
+  content: '';
+  display: block;
+  height: 0.35rem;
+  background: linear-gradient(90deg, var(--color-a), #ffc107, var(--color-b));
+}
+
+.progress-thick {
+  height: 0.8rem;
+  border-radius: 99px;
+}
+
+.stat-tile {
+  display: flex;
+  min-height: 6rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background: #f6f7fb;
+}
+
+.stat-tile strong {
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.stat-tile span {
+  margin-top: 0.55rem;
+  color: #6c757d;
+  font-size: 0.78rem;
+}
+
+.stat-complete {
+  background: rgba(25, 135, 84, 0.09);
+  color: #146c43;
+}
+
+.stat-remaining {
+  background: rgba(255, 193, 7, 0.13);
+  color: #7a5a00;
+}
+
+.category-progress-item .progress {
+  height: 0.45rem;
+}
+
+.history-item {
+  padding: 1.05rem 0;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.history-item:first-child {
+  padding-top: 0;
+}
+
+.history-item:last-child {
+  padding-bottom: 0;
+}
+
+.history-item:hover {
+  transform: translateX(0.25rem);
+}
+
+.empty-state-icon {
+  display: grid;
+  width: 4rem;
+  height: 4rem;
+  place-items: center;
+  border-radius: 1.25rem;
+  background: rgba(13, 110, 253, 0.1);
+  color: #0d6efd;
+  font-size: 1.75rem;
 }
 
 .grade-legendary_minority {

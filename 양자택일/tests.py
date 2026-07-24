@@ -275,3 +275,88 @@ class ConcurrentVoteAggregationTest(TestCase):
         self.assertAlmostEqual(result.percentage, 30.0, places=1)
         self.assertEqual(result.total_votes, 10)
         self.assertEqual(result.grade, ResultGrade.RARE)
+
+
+# ---------------------------------------------------------------------------
+# 11. 반복 없는 플레이 흐름 / 진행 기록
+# ---------------------------------------------------------------------------
+
+class PlayProgressTest(TestCase):
+    def setUp(self) -> None:
+        self.client = Client()
+        session = self.client.session
+        session.save()
+        self.session_key = session.session_key
+
+    def test_random_game_excludes_completed_questions(self) -> None:
+        completed = make_question(title='완료한 질문')
+        unplayed = make_question(title='남은 질문')
+        process_vote(
+            completed,
+            completed.choices.get(code='A'),
+            session_key=self.session_key,
+        )
+
+        response = self.client.get(reverse('games:random'))
+
+        self.assertRedirects(
+            response,
+            reverse('games:detail', kwargs={'question_id': unplayed.id}),
+            fetch_redirect_response=False,
+        )
+
+    def test_random_game_redirects_to_progress_when_all_completed(self) -> None:
+        question = make_question()
+        process_vote(
+            question,
+            question.choices.get(code='A'),
+            session_key=self.session_key,
+        )
+
+        response = self.client.get(reverse('games:random'))
+
+        self.assertRedirects(
+            response,
+            reverse('games:progress'),
+            fetch_redirect_response=False,
+        )
+
+    def test_result_next_question_excludes_previous_votes(self) -> None:
+        first = make_question(title='첫 질문')
+        second = make_question(title='두 번째 질문')
+        remaining = make_question(title='남은 질문')
+        process_vote(
+            first,
+            first.choices.get(code='A'),
+            session_key=self.session_key,
+        )
+        process_vote(
+            second,
+            second.choices.get(code='B'),
+            session_key=self.session_key,
+        )
+
+        response = self.client.get(
+            reverse('games:result', kwargs={'question_id': first.id}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['next_question'], remaining)
+
+    def test_progress_page_summarizes_session(self) -> None:
+        completed = make_question(title='완료한 질문')
+        make_question(title='남은 질문')
+        process_vote(
+            completed,
+            completed.choices.get(code='A'),
+            session_key=self.session_key,
+        )
+
+        response = self.client.get(reverse('games:progress'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['total_questions'], 2)
+        self.assertEqual(response.context['completed_questions'], 1)
+        self.assertEqual(response.context['remaining_questions'], 1)
+        self.assertEqual(response.context['completion_percentage'], 50)
+        self.assertEqual(len(response.context['recent_results']), 1)
