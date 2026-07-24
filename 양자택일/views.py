@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 from typing import Any
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, Prefetch, Q, QuerySet
@@ -19,6 +21,7 @@ from django.urls import reverse_lazy
 from .forms import (
     GameQuestionFormSet,
     GameSetForm,
+    InstantGameSearchForm,
     NicknameForm,
     QuestionDraftGeneratorForm,
     SignupForm,
@@ -29,12 +32,15 @@ from .moderation import requires_reference
 from .question_generator import generate_question_drafts_with_fallback
 from .services import (
     TemplateResultGenerator,
+    build_choice_pattern_result,
     build_game_set_result,
     build_result,
     get_grade,
     process_vote,
     undo_last_vote,
 )
+
+_INSTANT_GAME_SESSION_KEY = 'instant_game'
 
 
 # ---------------------------------------------------------------------------
@@ -49,6 +55,33 @@ def _ensure_session(request: HttpRequest) -> str:
 
 def _result_session_key(question_id: int) -> str:
     return f'result_{question_id}'
+
+
+def _get_instant_game(request: HttpRequest) -> dict[str, Any] | None:
+    game = request.session.get(_INSTANT_GAME_SESSION_KEY)
+    if not isinstance(game, dict):
+        return None
+
+    questions = game.get('questions')
+    answers = game.get('answers')
+    if (
+        not isinstance(questions, list)
+        or not 7 <= len(questions) <= 10
+        or not isinstance(answers, list)
+        or len(answers) != len(questions)
+    ):
+        request.session.pop(_INSTANT_GAME_SESSION_KEY, None)
+        return None
+
+    required_fields = {'title', 'description', 'choice_a', 'choice_b'}
+    if any(
+        not isinstance(question, dict)
+        or not required_fields.issubset(question)
+        for question in questions
+    ):
+        request.session.pop(_INSTANT_GAME_SESSION_KEY, None)
+        return None
+    return game
 
 
 def _public_questions() -> QuerySet[Question]:
@@ -168,7 +201,255 @@ class IndexView(TemplateView):
             context['total_questions'] - len(completed_ids),
             0,
         )
+        previous_query = self.request.session.pop('instant_game_query', '')
+        context['instant_search_form'] = InstantGameSearchForm(
+            initial={'keywords': previous_query},
+        )
+        context['recommended_keywords'] = [
+            '여행',
+            '연애',
+            '직장',
+            '음식',
+            '친구',
+        ]
         return context
+
+
+class InstantGameGenerateView(View):
+    question_count = 7
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        form = InstantGameSearchForm(request.POST)
+        if not form.is_valid():
+            errors = [
+                str(message)
+                for field_errors in form.errors.values()
+                for message in field_errors
+            ]
+            request.session['instant_game_query'] = request.POST.get('keywords', '')[:160]
+            messages.error(
+                request,
+                ' '.join(errors) or '플레이할 키워드를 다시 확인해주세요.',
+            )
+            return redirect('games:index')
+
+        if settings.OPENAI_API_KEY:
+            session_key = _ensure_session(request)
+            session_hash = hashlib.sha256(session_key.encode()).hexdigest()
+            cooldown_key = f'instant-game-generation:{session_hash}'
+            if not cache.add(
+                cooldown_key,
+                True,
+                timeout=settings.OPENAI_GENERATION_COOLDOWN,
+            ):
+                messages.info(
+                    request,
+                    f'새 게임은 {settings.OPENAI_GENERATION_COOLDOWN}초 후 다시 만들 수 있어요.',
+                )
+                return redirect('games:index')
+
+        keywords = form.cleaned_data['keywords']
+        try:
+            result = generate_question_drafts_with_fallback(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                timeout=settings.OPENAI_TIMEOUT,
+                keywords=keywords,
+                count=self.question_count,
+                category_name='맞춤 주제',
+            )
+        except (ValidationError, ValueError):
+            messages.error(
+                request,
+                '안전한 게임을 만들지 못했습니다. 다른 키워드로 다시 시도해주세요.',
+            )
+            return redirect('games:index')
+
+        drafts = result.get('drafts')
+        if not isinstance(drafts, list) or len(drafts) != self.question_count:
+            messages.error(request, '게임 문항을 완성하지 못했습니다. 다시 시도해주세요.')
+            return redirect('games:index')
+
+        request.session[_INSTANT_GAME_SESSION_KEY] = {
+            'title': result.get('title_suggestion', '나만의 양자택일'),
+            'description': result.get('description_suggestion', ''),
+            'keywords': keywords,
+            'questions': drafts,
+            'answers': [None] * len(drafts),
+            'source': result.get('source', 'local'),
+        }
+        return redirect('games:instant_play', question_number=1)
+
+
+class InstantGamePlayView(TemplateView):
+    template_name = 'games/instant_play.html'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        game = _get_instant_game(self.request)
+        if game is None:
+            context['missing_game'] = True
+            return context
+
+        question_number = self.kwargs['question_number']
+        question_index = question_number - 1
+        questions = game['questions']
+        answers = game['answers']
+        if question_index not in range(len(questions)):
+            context['invalid_question'] = True
+            return context
+
+        first_unanswered = next(
+            (index for index, answer in enumerate(answers) if answer is None),
+            len(answers),
+        )
+        if question_index > first_unanswered:
+            context['next_required_question'] = first_unanswered + 1
+            return context
+
+        context.update({
+            'instant_game': game,
+            'question': questions[question_index],
+            'question_number': question_number,
+            'question_count': len(questions),
+            'completed_count': sum(answer is not None for answer in answers),
+            'selected_choice': answers[question_index],
+            'previous_question_number': (
+                question_number - 1
+                if question_number > 1
+                else None
+            ),
+            'categories': Category.objects.all(),
+        })
+        return context
+
+    def render_to_response(
+        self,
+        context: dict[str, Any],
+        **response_kwargs: Any,
+    ) -> HttpResponse:
+        if context.get('missing_game'):
+            messages.info(self.request, '메인에서 키워드를 입력해 게임을 먼저 만들어주세요.')
+            return redirect('games:index')
+        if context.get('invalid_question'):
+            return redirect('games:instant_play', question_number=1)
+        if context.get('next_required_question'):
+            return redirect(
+                'games:instant_play',
+                question_number=context['next_required_question'],
+            )
+        return super().render_to_response(context, **response_kwargs)
+
+
+class InstantGameAnswerView(View):
+    def post(self, request: HttpRequest, question_number: int) -> HttpResponse:
+        game = _get_instant_game(request)
+        if game is None:
+            messages.info(request, '메인에서 키워드를 입력해 게임을 먼저 만들어주세요.')
+            return redirect('games:index')
+
+        question_index = question_number - 1
+        questions = game['questions']
+        answers = game['answers']
+        if question_index not in range(len(questions)):
+            return redirect('games:instant_play', question_number=1)
+
+        earlier_missing = next(
+            (
+                index
+                for index, answer in enumerate(answers[:question_index])
+                if answer is None
+            ),
+            None,
+        )
+        if earlier_missing is not None:
+            return redirect(
+                'games:instant_play',
+                question_number=earlier_missing + 1,
+            )
+
+        choice_code = request.POST.get('choice')
+        if choice_code not in Choice.Code.values:
+            messages.error(request, 'A 또는 B 중 하나를 선택해주세요.')
+            return redirect(
+                'games:instant_play',
+                question_number=question_number,
+            )
+
+        answers[question_index] = choice_code
+        request.session.modified = True
+        if question_number < len(questions):
+            return redirect(
+                'games:instant_play',
+                question_number=question_number + 1,
+            )
+        if all(answer is not None for answer in answers):
+            return redirect('games:instant_result')
+
+        next_unanswered = answers.index(None)
+        return redirect(
+            'games:instant_play',
+            question_number=next_unanswered + 1,
+        )
+
+
+class InstantGameResultView(TemplateView):
+    template_name = 'games/instant_result.html'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        game = _get_instant_game(self.request)
+        if game is None:
+            context['missing_game'] = True
+            return context
+
+        answers = game['answers']
+        if any(answer is None for answer in answers):
+            context['next_required_question'] = answers.index(None) + 1
+            return context
+
+        answer_items = []
+        for question, choice_code in zip(game['questions'], answers, strict=True):
+            choice_field = 'choice_a' if choice_code == Choice.Code.A else 'choice_b'
+            answer_items.append({
+                'question': question,
+                'choice': {
+                    'code': choice_code,
+                    'text': question[choice_field],
+                },
+            })
+
+        display_name = (
+            self.request.user.username
+            if self.request.user.is_authenticated
+            else '플레이어'
+        )
+        context.update({
+            'instant_game': game,
+            'set_result': build_choice_pattern_result(
+                display_name=display_name,
+                choice_codes=answers,
+            ),
+            'answer_items': answer_items,
+            'categories': Category.objects.all(),
+        })
+        return context
+
+    def render_to_response(
+        self,
+        context: dict[str, Any],
+        **response_kwargs: Any,
+    ) -> HttpResponse:
+        if context.get('missing_game'):
+            messages.info(self.request, '메인에서 키워드를 입력해 게임을 먼저 만들어주세요.')
+            return redirect('games:index')
+        if context.get('next_required_question'):
+            messages.info(self.request, '모든 질문에 답하면 유형 결과를 확인할 수 있어요.')
+            return redirect(
+                'games:instant_play',
+                question_number=context['next_required_question'],
+            )
+        return super().render_to_response(context, **response_kwargs)
 
 
 class GameListView(ListView):

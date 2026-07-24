@@ -197,6 +197,260 @@ body {
   background: rgba(255, 255, 255, 0.18);
 }
 
+/* ===== 메인 키워드 즉석 게임 ===== */
+.instant-hero {
+  position: relative;
+  display: grid;
+  min-height: 35rem;
+  padding: clamp(5rem, 10vw, 8rem) 0;
+  overflow: hidden;
+  place-items: center;
+  background:
+    linear-gradient(120deg, rgba(220, 53, 69, 0.045), transparent 38%),
+    linear-gradient(240deg, rgba(13, 110, 253, 0.075), transparent 44%),
+    #f7f9ff;
+}
+
+.instant-hero::before,
+.instant-hero::after {
+  position: absolute;
+  width: 18rem;
+  height: 18rem;
+  border: 1px solid rgba(34, 62, 133, 0.08);
+  border-radius: 50%;
+  content: '';
+}
+
+.instant-hero::before {
+  top: 4rem;
+  right: -6rem;
+  box-shadow:
+    0 0 0 2.5rem rgba(13, 110, 253, 0.018),
+    0 0 0 5rem rgba(13, 110, 253, 0.012);
+}
+
+.instant-hero::after {
+  bottom: -9rem;
+  left: -5rem;
+  box-shadow:
+    0 0 0 2.5rem rgba(220, 53, 69, 0.018),
+    0 0 0 5rem rgba(220, 53, 69, 0.012);
+}
+
+.instant-orb {
+  position: absolute;
+  width: 20rem;
+  height: 20rem;
+  border-radius: 50%;
+  filter: blur(5rem);
+  opacity: 0.23;
+  pointer-events: none;
+}
+
+.instant-orb-a {
+  top: -10rem;
+  left: 3%;
+  background: #ff6b7f;
+}
+
+.instant-orb-b {
+  right: 2%;
+  bottom: -10rem;
+  background: #4d8fff;
+}
+
+.instant-hero-content {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 67rem);
+}
+
+.instant-kicker {
+  color: #3451b2;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+}
+
+.instant-hero-title {
+  color: #10152f;
+  font-size: clamp(2.35rem, 5.7vw, 4.25rem);
+  letter-spacing: -0.055em;
+  line-height: 1.12;
+}
+
+.instant-hero-copy {
+  color: #68708a;
+  font-size: clamp(1rem, 2vw, 1.22rem);
+}
+
+.instant-search-form {
+  position: relative;
+  display: flex;
+  width: min(100%, 60rem);
+  min-height: 6rem;
+  align-items: center;
+  padding: 0.75rem 0.8rem 0.75rem 4.5rem;
+  border: 1px solid rgba(33, 55, 105, 0.1);
+  border-radius: 999px;
+  background: #fff;
+  box-shadow:
+    0 1.4rem 3.5rem rgba(23, 44, 94, 0.14),
+    0 0.2rem 0.8rem rgba(23, 44, 94, 0.08);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.instant-search-form:focus-within {
+  box-shadow:
+    0 1.5rem 3.8rem rgba(23, 44, 94, 0.18),
+    0 0 0 0.28rem rgba(13, 110, 253, 0.13);
+  transform: translateY(-2px);
+}
+
+.instant-search-icon {
+  position: absolute;
+  left: 2rem;
+  color: #5a6275;
+  font-size: 1.65rem;
+}
+
+.instant-search-input {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 1rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #151a2d;
+  font-size: clamp(1rem, 2.2vw, 1.25rem);
+}
+
+.instant-search-input::placeholder {
+  color: #9ba1af;
+}
+
+.instant-search-button {
+  display: inline-flex;
+  min-width: 10.5rem;
+  min-height: 4.5rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1b55db, #0d6efd);
+  color: #fff;
+  font-size: 1.08rem;
+  font-weight: 900;
+  box-shadow: 0 0.6rem 1.4rem rgba(13, 110, 253, 0.24);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.instant-search-button:hover {
+  box-shadow: 0 0.8rem 1.7rem rgba(13, 110, 253, 0.32);
+  transform: translateY(-1px);
+}
+
+.instant-search-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.instant-keywords {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+}
+
+.instant-keyword-label {
+  margin-right: 0.15rem;
+  color: #62697b;
+  font-size: 0.83rem;
+  font-weight: 800;
+}
+
+.instant-keyword-chip {
+  padding: 0.38rem 0.75rem;
+  border: 1px solid rgba(13, 110, 253, 0.06);
+  border-radius: 999px;
+  background: rgba(13, 110, 253, 0.08);
+  color: #2362c9;
+  font-size: 0.82rem;
+  font-weight: 800;
+  transition: background 0.16s ease, transform 0.16s ease;
+}
+
+.instant-keyword-chip:hover,
+.instant-keyword-chip:focus-visible {
+  background: rgba(13, 110, 253, 0.15);
+  transform: translateY(-1px);
+}
+
+.instant-trust-row,
+.instant-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 1.2rem;
+}
+
+.instant-trust-row {
+  color: #697188;
+  font-size: 0.78rem;
+}
+
+.instant-trust-row i {
+  color: #198754;
+}
+
+.instant-secondary-actions {
+  color: #a0a6b4;
+  font-size: 0.85rem;
+}
+
+.instant-secondary-actions a {
+  color: #5d667b;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.instant-secondary-actions a:hover {
+  color: #0d6efd;
+}
+
+/* ===== 세션 기반 즉석 게임 ===== */
+.instant-play-page {
+  min-height: 76vh;
+  background:
+    radial-gradient(circle at 8% 5%, rgba(220, 53, 69, 0.08), transparent 22rem),
+    radial-gradient(circle at 92% 90%, rgba(13, 110, 253, 0.1), transparent 25rem),
+    #f7f8fc;
+}
+
+.instant-play-card {
+  overflow: hidden;
+}
+
+.instant-play-card::before {
+  display: block;
+  height: 0.45rem;
+  background: linear-gradient(90deg, var(--color-a), #ffc107, var(--color-b));
+  content: '';
+}
+
+.instant-question-title {
+  font-size: clamp(1.45rem, 4vw, 2.2rem);
+  line-height: 1.4;
+  word-break: keep-all;
+}
+
+.instant-choice-text {
+  font-size: clamp(1rem, 2.5vw, 1.18rem);
+  line-height: 1.55;
+  word-break: keep-all;
+}
+
 /* ===== 게임 카드 ===== */
 .game-card {
   border-radius: 1rem !important;
@@ -777,4 +1031,36 @@ body {
   .hero-section { padding: 3rem 0; }
   .hero-section h1 { font-size: 2rem; }
   .choice-btn { padding: 1.5rem 1rem !important; }
+  .instant-hero {
+    min-height: 34rem;
+    padding: 4.5rem 0;
+  }
+  .instant-search-form {
+    min-height: 4.75rem;
+    padding: 0.55rem 0.55rem 0.55rem 3.2rem;
+  }
+  .instant-search-icon {
+    left: 1.25rem;
+    font-size: 1.25rem;
+  }
+  .instant-search-input {
+    padding: 0 0.5rem;
+    font-size: 0.92rem;
+  }
+  .instant-search-input::placeholder {
+    font-size: 0.82rem;
+  }
+  .instant-search-button {
+    min-width: 4.4rem;
+    min-height: 3.6rem;
+    padding: 0 1rem;
+    font-size: 0;
+  }
+  .instant-search-button i {
+    margin: 0 !important;
+    font-size: 1.15rem;
+  }
+  .instant-trust-row {
+    gap: 0.45rem 0.8rem;
+  }
 }

@@ -7,6 +7,7 @@ env = environ.Env(
     ALLOWED_HOSTS=(list, ['127.0.0.1', 'localhost']),
     OPENAI_MODEL=(str, 'gpt-5.6'),
     OPENAI_TIMEOUT=(float, 30.0),
+    OPENAI_GENERATION_COOLDOWN=(int, 10),
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,6 +20,7 @@ ALLOWED_HOSTS = env('ALLOWED_HOSTS')
 OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
 OPENAI_MODEL = env('OPENAI_MODEL')
 OPENAI_TIMEOUT = env('OPENAI_TIMEOUT')
+OPENAI_GENERATION_COOLDOWN = env('OPENAI_GENERATION_COOLDOWN')
 
 INSTALLED_APPS = [
     'django.contrib.admin',

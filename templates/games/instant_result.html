@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ instant_game.title }} 결과 - 양자택일{% endblock %}
+
+{% block content %}
+<section class="set-result-hero py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="text-center mb-4">
+          <span class="badge bg-primary mb-3">{{ instant_game.title }}</span>
+          <p class="eyebrow mb-2">YOUR KEYWORD CHOICE TYPE</p>
+          <h1 class="display-5 fw-black mb-3">
+            {{ set_result.display_name }}님은<br>
+            <span class="text-primary">{{ set_result.type_name }}</span>입니다
+          </h1>
+          <p class="lead text-muted mb-0">{{ set_result.type_summary }}</p>
+        </div>
+
+        <div class="card result-type-card border-0 shadow rounded-4">
+          <div class="card-body p-4 p-md-5">
+            <div class="text-center mb-4">
+              {% for keyword in set_result.keywords %}
+              <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3 py-2 mx-1">#{{ keyword }}</span>
+              {% endfor %}
+            </div>
+
+            <div class="choice-distribution mb-5">
+              <div class="d-flex justify-content-between mb-2">
+                <strong class="text-danger">A {{ set_result.a_count }}회</strong>
+                <strong class="text-primary">B {{ set_result.b_count }}회</strong>
+              </div>
+              <div class="choice-distribution-bar" aria-label="A와 B 선택 비율">
+                <span class="distribution-a" style="width:{{ set_result.a_percentage }}%"></span>
+                <span class="distribution-b" style="width:{{ set_result.b_percentage }}%"></span>
+              </div>
+              <p class="text-center small text-muted mt-2 mb-0">
+                한 방향으로 선택이 모인 정도 {{ set_result.consistency_score }}%
+              </p>
+            </div>
+
+            <div class="analysis-switch d-flex mb-3" role="tablist" aria-label="결과 해석 방식">
+              <button type="button" class="analysis-tab active" data-analysis-tab="comic" role="tab" aria-selected="true">
+                <i class="bi bi-emoji-laughing me-1"></i>코믹 해석
+              </button>
+              <button type="button" class="analysis-tab" data-analysis-tab="professional" role="tab" aria-selected="false">
+                <i class="bi bi-bar-chart-line me-1"></i>패턴 분석
+              </button>
+            </div>
+            <div class="analysis-panel comic-panel" data-analysis-panel="comic">
+              <h2 class="h5 fw-bold mb-3">웃음 한 스푼 해석</h2>
+              <p class="mb-0">{{ set_result.comic_analysis }}</p>
+            </div>
+            <div class="analysis-panel professional-panel" data-analysis-panel="professional" hidden>
+              <h2 class="h5 fw-bold mb-3">선택 패턴 분석</h2>
+              <p class="mb-0">{{ set_result.professional_analysis }}</p>
+            </div>
+
+            <div class="share-box rounded-3 p-3 mt-4 text-center">
+              <p id="shareText" class="fw-bold mb-3">
+                나는 양자택일 {{ instant_game.title }}에서 ‘{{ set_result.type_name }}’! 당신은 어떤 유형?
+              </p>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="copyBtn" onclick="copyShareText()">
+                <i class="bi bi-clipboard me-1"></i>결과 복사
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+          <div class="card-body p-4">
+            <h2 class="h5 fw-bold mb-4">
+              <i class="bi bi-list-check me-2 text-primary"></i>나의 선택 모아보기
+            </h2>
+            {% for item in answer_items %}
+            <div class="d-flex justify-content-between gap-3 py-3 {% if not forloop.last %}border-bottom{% endif %}">
+              <div>
+                <span class="small text-muted">{{ forloop.counter }}번</span>
+                <p class="fw-bold mb-1">{{ item.question.title }}</p>
+                <p class="small text-muted mb-0">{{ item.choice.text }}</p>
+              </div>
+              <span class="choice-code-badge {% if item.choice.code == 'A' %}badge-a{% else %}badge-b{% endif %} flex-shrink-0">
+                {{ item.choice.code }}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+          <a
+            href="{% url 'games:instant_play' set_result.total_questions %}"
+            class="btn btn-outline-primary px-4"
+          >
+            <i class="bi bi-arrow-counterclockwise me-2"></i>마지막 선택 수정
+          </a>
+          <a href="{% url 'games:index' %}#quick-play" class="btn btn-warning fw-bold px-4">
+            <i class="bi bi-search me-2"></i>새 키워드로 만들기
+          </a>
+        </div>
+        <p class="text-center text-muted x-small mt-4">
+          이 결과는 선택 패턴을 재미있게 해석한 콘텐츠이며 실제 성격·심리 진단이 아닙니다.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

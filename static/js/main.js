@@ -307,5 +307,57 @@ function initAnalysisTabs() {
   });
 }
 
+function initInstantSearch() {
+  const form = document.getElementById('instantSearchForm');
+  const input = document.getElementById('instantKeywords');
+  const submitButton = document.getElementById('instantSearchButton');
+  const keywordButtons = document.querySelectorAll('[data-instant-keyword]');
+  if (!form || !input || !submitButton) return;
+
+  keywordButtons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      input.value = button.dataset.instantKeyword || '';
+      input.focus();
+    });
+  });
+
+  form.addEventListener('submit', function () {
+    if (!input.value.trim()) return;
+    submitButton.disabled = true;
+    submitButton.innerHTML = (
+      '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>'
+      + '<span>게임 만드는 중</span>'
+    );
+  });
+}
+
+function initInstantAnswer() {
+  const form = document.getElementById('instantAnswerForm');
+  const choiceInput = document.getElementById('instantChoiceInput');
+  const status = document.getElementById('instantAnswerStatus');
+  const buttons = document.querySelectorAll('[data-instant-choice]');
+  if (!form || !choiceInput || !buttons.length) return;
+
+  let submitting = false;
+  buttons.forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (submitting) return;
+      submitting = true;
+      const choiceCode = button.dataset.instantChoice || '';
+      choiceInput.value = choiceCode;
+      buttons.forEach(function (candidate) {
+        candidate.disabled = true;
+        candidate.classList.toggle('is-selected', candidate === button);
+      });
+      if (status) status.textContent = '선택 완료! 다음 문항으로 이동합니다…';
+      window.setTimeout(function () {
+        form.submit();
+      }, 180);
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', initWelcome);
 document.addEventListener('DOMContentLoaded', initAnalysisTabs);
+document.addEventListener('DOMContentLoaded', initInstantSearch);
+document.addEventListener('DOMContentLoaded', initInstantAnswer);

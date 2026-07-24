@@ -848,6 +848,143 @@ class QuestionDraftGenerationTest(TestCase):
             )
 
 
+@override_settings(OPENAI_API_KEY='')
+class InstantGameFlowTest(TestCase):
+    def setUp(self) -> None:
+        self.generate_url = reverse('games:instant_generate')
+
+    def generate_game(self, keywords: str = '여행, 친구'):
+        return self.client.post(
+            self.generate_url,
+            {'keywords': keywords},
+        )
+
+    def test_home_centers_keyword_game_search_without_creator_navigation(self) -> None:
+        response = self.client.get(reverse('games:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '어떤 양자택일을')
+        self.assertContains(response, '원하는 주제를 입력하세요')
+        self.assertContains(response, self.generate_url)
+        self.assertContains(response, '#여행')
+        self.assertNotContains(response, '게임 만들기')
+
+    def test_anonymous_keyword_generates_session_game_without_saving(self) -> None:
+        response = self.generate_game()
+
+        self.assertRedirects(
+            response,
+            reverse('games:instant_play', kwargs={'question_number': 1}),
+            fetch_redirect_response=False,
+        )
+        game = self.client.session['instant_game']
+        self.assertEqual(len(game['questions']), 7)
+        self.assertEqual(game['answers'], [None] * 7)
+        self.assertEqual(game['keywords'], ['여행', '친구'])
+        self.assertEqual(game['source'], 'local')
+        self.assertFalse(GameSet.objects.exists())
+        self.assertFalse(Question.objects.exists())
+
+    def test_unsafe_keyword_is_rejected_before_generation(self) -> None:
+        response = self.generate_game('19금 여행')
+
+        self.assertRedirects(
+            response,
+            reverse('games:index'),
+            fetch_redirect_response=False,
+        )
+        self.assertNotIn('instant_game', self.client.session)
+
+        follow_response = self.client.get(reverse('games:index'))
+        self.assertContains(follow_response, '성인·음란 콘텐츠')
+
+    def test_choice_automatically_moves_to_next_question_and_back_link_works(self) -> None:
+        self.generate_game()
+
+        first_page = self.client.get(
+            reverse('games:instant_play', kwargs={'question_number': 1}),
+        )
+        self.assertContains(first_page, '1 / 7 문항')
+        self.assertContains(first_page, '하나를 선택하면 다음 문항으로 자동 이동합니다.')
+
+        answer_response = self.client.post(
+            reverse('games:instant_answer', kwargs={'question_number': 1}),
+            {'choice': 'A'},
+        )
+        self.assertRedirects(
+            answer_response,
+            reverse('games:instant_play', kwargs={'question_number': 2}),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(self.client.session['instant_game']['answers'][0], 'A')
+
+        second_page = self.client.get(
+            reverse('games:instant_play', kwargs={'question_number': 2}),
+        )
+        self.assertContains(
+            second_page,
+            reverse('games:instant_play', kwargs={'question_number': 1}),
+        )
+        self.assertContains(second_page, '뒤로가기 · 이전 선택 수정')
+
+    def test_previous_answer_can_be_changed_without_database_vote(self) -> None:
+        self.generate_game()
+        answer_url = reverse(
+            'games:instant_answer',
+            kwargs={'question_number': 1},
+        )
+        self.client.post(answer_url, {'choice': 'A'})
+
+        first_page = self.client.get(
+            reverse('games:instant_play', kwargs={'question_number': 1}),
+        )
+        self.assertContains(first_page, 'data-instant-choice="A"')
+        self.assertContains(first_page, 'is-selected')
+
+        self.client.post(answer_url, {'choice': 'B'})
+
+        self.assertEqual(self.client.session['instant_game']['answers'][0], 'B')
+        self.assertFalse(Vote.objects.exists())
+
+    def test_result_requires_every_question_to_be_answered(self) -> None:
+        self.generate_game()
+
+        response = self.client.get(reverse('games:instant_result'))
+
+        self.assertRedirects(
+            response,
+            reverse('games:instant_play', kwargs={'question_number': 1}),
+            fetch_redirect_response=False,
+        )
+
+    def test_completed_instant_game_shows_type_and_choice_analysis(self) -> None:
+        self.generate_game('야구')
+        choices = ['A', 'B', 'A', 'B', 'A', 'B', 'A']
+        for question_number, choice_code in enumerate(choices, start=1):
+            response = self.client.post(
+                reverse(
+                    'games:instant_answer',
+                    kwargs={'question_number': question_number},
+                ),
+                {'choice': choice_code},
+            )
+
+        self.assertRedirects(
+            response,
+            reverse('games:instant_result'),
+            fetch_redirect_response=False,
+        )
+        result_page = self.client.get(reverse('games:instant_result'))
+        self.assertContains(result_page, '플레이어님은')
+        self.assertContains(result_page, 'A 4회')
+        self.assertContains(result_page, 'B 3회')
+        self.assertContains(result_page, '코믹 해석')
+        self.assertContains(result_page, '패턴 분석')
+        self.assertFalse(GameSet.objects.exists())
+        self.assertFalse(Question.objects.exists())
+        self.assertFalse(Vote.objects.exists())
+
+
 class UserGameModerationTest(TestCase):
     def setUp(self) -> None:
         self.creator = get_user_model().objects.create_user(

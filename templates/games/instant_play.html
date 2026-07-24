@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ instant_game.title }} {{ question_number }}번 - 양자택일{% endblock %}
+
+{% block content %}
+<section class="instant-play-page py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+          <a href="{% url 'games:index' %}#quick-play" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-search me-1"></i>새 키워드
+          </a>
+          {% if previous_question_number %}
+          <a
+            href="{% url 'games:instant_play' previous_question_number %}"
+            class="btn btn-sm btn-outline-primary"
+          >
+            <i class="bi bi-arrow-left me-1"></i>뒤로가기 · 이전 선택 수정
+          </a>
+          {% endif %}
+        </div>
+
+        <div class="card instant-play-card border-0 shadow rounded-4">
+          <div class="card-body p-4 p-md-5">
+            <div class="text-center mb-4">
+              <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary mb-3">
+                {% if instant_game.source == 'ai' %}
+                <i class="bi bi-stars me-1"></i>AI 맞춤 게임
+                {% else %}
+                <i class="bi bi-lightning-charge me-1"></i>맞춤 게임
+                {% endif %}
+              </span>
+              <p class="small text-muted mb-3">{{ instant_game.title }}</p>
+
+              <div class="question-step mx-auto mb-4">
+                <div class="d-flex justify-content-between small mb-2">
+                  <strong>{{ question_number }} / {{ question_count }} 문항</strong>
+                  <span class="text-muted">{{ completed_count }}개 선택 완료</span>
+                </div>
+                <div
+                  class="progress"
+                  role="progressbar"
+                  aria-label="맞춤 게임 진행률"
+                  aria-valuenow="{{ question_number }}"
+                  aria-valuemin="1"
+                  aria-valuemax="{{ question_count }}"
+                >
+                  <div class="progress-bar bg-warning" style="width:{% widthratio question_number question_count 100 %}%"></div>
+                </div>
+              </div>
+
+              <h1 class="instant-question-title fw-black mb-3">{{ question.title }}</h1>
+              {% if question.description %}
+              <p class="text-muted mb-2">{{ question.description }}</p>
+              {% endif %}
+              <p class="small text-primary fw-bold mb-0" id="instantAnswerStatus" role="status" aria-live="polite">
+                하나를 선택하면 다음 문항으로 자동 이동합니다.
+              </p>
+            </div>
+
+            <form
+              method="post"
+              action="{% url 'games:instant_answer' question_number %}"
+              id="instantAnswerForm"
+            >
+              {% csrf_token %}
+              <input type="hidden" name="choice" id="instantChoiceInput" value="">
+
+              <div class="row g-4 align-items-center">
+                <div class="col-12 col-md-5">
+                  <button
+                    type="button"
+                    class="choice-btn choice-btn-a w-100 h-100 p-4 p-md-5 rounded-4 border-0 shadow-sm {% if selected_choice == 'A' %}is-selected{% endif %}"
+                    data-instant-choice="A"
+                    aria-label="A 선택: {{ question.choice_a }}"
+                  >
+                    <span class="choice-code-badge badge-a mb-3">A</span>
+                    <span class="d-block fw-bold instant-choice-text">{{ question.choice_a }}</span>
+                  </button>
+                </div>
+                <div class="col-md-2 text-center d-none d-md-block">
+                  <span class="vs-circle">VS</span>
+                </div>
+                <div class="col-12 col-md-5">
+                  <button
+                    type="button"
+                    class="choice-btn choice-btn-b w-100 h-100 p-4 p-md-5 rounded-4 border-0 shadow-sm {% if selected_choice == 'B' %}is-selected{% endif %}"
+                    data-instant-choice="B"
+                    aria-label="B 선택: {{ question.choice_b }}"
+                  >
+                    <span class="choice-code-badge badge-b mb-3">B</span>
+                    <span class="d-block fw-bold instant-choice-text">{{ question.choice_b }}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <p class="text-center text-muted x-small mt-4 mb-0">
+          생성된 질문은 공개 게임으로 저장되지 않으며, 결과는 재미를 위한 선택 패턴 해석입니다.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

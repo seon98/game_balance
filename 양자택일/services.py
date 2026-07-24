@@ -371,11 +371,25 @@ def build_game_set_result(
     display_name: str,
     votes: list[Vote],
 ) -> GameSetResultData:
-    total = len(votes)
+    return build_choice_pattern_result(
+        display_name=display_name,
+        choice_codes=[vote.choice.code for vote in votes],
+    )
+
+
+def build_choice_pattern_result(
+    *,
+    display_name: str,
+    choice_codes: list[str],
+) -> GameSetResultData:
+    total = len(choice_codes)
     if total == 0:
         raise ValueError('세트 결과를 만들려면 한 개 이상의 답변이 필요합니다.')
 
-    a_count = sum(vote.choice.code == Choice.Code.A for vote in votes)
+    if any(code not in Choice.Code.values for code in choice_codes):
+        raise ValueError('선택 코드는 A 또는 B여야 합니다.')
+
+    a_count = sum(code == Choice.Code.A for code in choice_codes)
     b_count = total - a_count
     a_percentage = round(a_count / total * 100, 1)
     b_percentage = round(b_count / total * 100, 1)
