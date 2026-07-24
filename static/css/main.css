@@ -972,6 +972,137 @@ body {
   word-break: keep-all;
 }
 
+.result-section-card {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.result-section-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.result-section-icon {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 1rem;
+  background: rgba(255, 193, 7, 0.18);
+  color: #a66800;
+  font-size: 1.25rem;
+}
+
+.result-section-icon.manual-icon {
+  background: rgba(111, 66, 193, 0.12);
+  color: #6f42c1;
+}
+
+.result-section-icon.compass-icon {
+  background: rgba(13, 110, 253, 0.11);
+  color: #0d6efd;
+}
+
+.decisive-choice-card {
+  padding: 1.2rem;
+  border: 1px solid #e5e9f2;
+  border-radius: 1.1rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(247, 249, 255, 0.96));
+}
+
+.decisive-choice-card h3,
+.decisive-choice-card > p {
+  word-break: keep-all;
+}
+
+.decisive-choice-impact {
+  padding-top: 0.8rem;
+  border-top: 1px dashed #d7ddea;
+  color: #52617f;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.manual-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.manual-item {
+  padding: 1.25rem;
+  border: 1px solid #e5e9f2;
+  border-radius: 1rem;
+  background: #f9faff;
+  line-height: 1.75;
+  word-break: keep-all;
+}
+
+.manual-item-tip {
+  grid-column: 1 / -1;
+  border-color: rgba(13, 110, 253, 0.18);
+  background:
+    linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(111, 66, 193, 0.08));
+}
+
+.manual-item-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+  color: #213975;
+  font-size: 0.83rem;
+  font-weight: 800;
+}
+
+.axis-compass-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.axis-compass-item {
+  padding: 1.2rem;
+  border: 1px solid #e5e9f2;
+  border-radius: 1rem;
+  background: #fbfcff;
+}
+
+.axis-name {
+  display: inline-grid;
+  min-width: 3.2rem;
+  padding: 0.32rem 0.55rem;
+  place-items: center;
+  border-radius: 0.55rem;
+  background: #1a2d6f;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.axis-balance-label {
+  color: #65708a;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.axis-compass-bar {
+  display: flex;
+  height: 0.85rem;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e9ecef;
+}
+
+.axis-side-first {
+  background: linear-gradient(90deg, #dc3545, #f28a9d);
+}
+
+.axis-side-second {
+  background: linear-gradient(90deg, #82b4ff, #0d6efd);
+}
+
 .choice-distribution-bar {
   display: flex;
   height: 1rem;
@@ -1025,6 +1156,16 @@ body {
 .professional-panel {
   background: #eef5ff;
   border: 1px solid #cfe2ff;
+}
+
+@media (max-width: 767.98px) {
+  .manual-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-item-tip {
+    grid-column: auto;
+  }
 }
 
 .set-start-form {

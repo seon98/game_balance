@@ -11,7 +11,7 @@
           <span class="badge bg-primary mb-3">{{ instant_game.title }}</span>
           <p class="eyebrow mb-2">YOUR CHOICE MBTI CHARACTER</p>
           <h1 class="display-5 fw-black mb-3">
-            {{ set_result.display_name }}님의 선택 속<br>
+            {{ display_name }}님의 선택 속<br>
             <span class="text-primary">숨은 캐릭터는?</span>
           </h1>
         </div>
@@ -38,48 +38,137 @@
           </div>
         </div>
 
-        <div class="card result-type-card border-0 shadow rounded-4 mt-4">
+        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
           <div class="card-body p-4 p-md-5">
-            <div class="text-center mb-4">
-              <p class="eyebrow mb-2">A/B CHOICE RHYTHM</p>
-              <h2 class="h4 fw-black mb-2">{{ set_result.type_name }}</h2>
-              <p class="text-muted mb-0">{{ set_result.type_summary }}</p>
+            <div class="result-section-heading mb-4">
+              <span class="result-section-icon">
+                <i class="bi bi-lightning-fill"></i>
+              </span>
+              <div>
+                <p class="eyebrow mb-1">DECISIVE CHOICES</p>
+                <h2 class="h4 fw-black mb-1">결정적 선택</h2>
+                <p class="text-muted mb-0">
+                  결과에 가장 큰 방향을 더한 실제 선택을 모았습니다.
+                </p>
+              </div>
             </div>
-            <div class="text-center mb-4">
-              {% for keyword in set_result.keywords %}
-              <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3 py-2 mx-1">#{{ keyword }}</span>
+            <div class="row g-3">
+              {% for item in mbti_result.decisive_choices %}
+              <div class="col-md-4">
+                <article class="decisive-choice-card h-100">
+                  <div class="d-flex justify-content-between align-items-center gap-2 mb-3">
+                    <span class="small fw-bold text-muted">Q{{ item.question_number }}</span>
+                    <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary">
+                      {{ item.mbti_axis }} · {{ item.selected_trait }}
+                    </span>
+                  </div>
+                  <h3 class="h6 fw-bold mb-2">{{ item.question }}</h3>
+                  <p class="small mb-3">“{{ item.selected_option }}”</p>
+                  <p class="decisive-choice-impact mb-0">
+                    {{ item.influence }}
+                  </p>
+                </article>
+              </div>
               {% endfor %}
             </div>
+          </div>
+        </div>
 
-            <div class="choice-distribution mb-5">
-              <div class="d-flex justify-content-between mb-2">
-                <strong class="text-danger">A {{ set_result.a_count }}회</strong>
-                <strong class="text-primary">B {{ set_result.b_count }}회</strong>
+        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
+          <div class="card-body p-4 p-md-5">
+            <div class="result-section-heading mb-4">
+              <span class="result-section-icon manual-icon">
+                <i class="bi bi-journal-check"></i>
+              </span>
+              <div>
+                <p class="eyebrow mb-1">YOUR DECISION MANUAL</p>
+                <h2 class="h4 fw-black mb-1">나의 선택 사용설명서</h2>
+                <p class="text-muted mb-0">
+                  결과 이름보다 실제 선택할 때 써먹을 수 있는 해석입니다.
+                </p>
               </div>
-              <div class="choice-distribution-bar" aria-label="A와 B 선택 비율">
-                <span class="distribution-a" style="width:{{ set_result.a_percentage }}%"></span>
-                <span class="distribution-b" style="width:{{ set_result.b_percentage }}%"></span>
-              </div>
-              <p class="text-center small text-muted mt-2 mb-0">
-                한 방향으로 선택이 모인 정도 {{ set_result.consistency_score }}%
-              </p>
             </div>
 
-            <div class="analysis-switch d-flex mb-3" role="tablist" aria-label="결과 해석 방식">
-              <button type="button" class="analysis-tab active" data-analysis-tab="comic" role="tab" aria-selected="true">
-                <i class="bi bi-emoji-laughing me-1"></i>코믹 해석
-              </button>
-              <button type="button" class="analysis-tab" data-analysis-tab="professional" role="tab" aria-selected="false">
-                <i class="bi bi-bar-chart-line me-1"></i>패턴 분석
-              </button>
+            <div class="manual-grid">
+              <article class="manual-item">
+                <span class="manual-item-label">
+                  <i class="bi bi-gem"></i> 선택에서 드러난 강점
+                </span>
+                <p class="mb-0">{{ mbti_result.strength }}</p>
+              </article>
+              <article class="manual-item">
+                <span class="manual-item-label">
+                  <i class="bi bi-exclamation-circle"></i> 놓치기 쉬운 함정
+                </span>
+                <p class="mb-0">{{ mbti_result.blind_spot }}</p>
+              </article>
+              <article class="manual-item">
+                <span class="manual-item-label">
+                  <i class="bi bi-chat-square-dots"></i> 갈등 상황의 반응
+                </span>
+                <p class="mb-0">{{ mbti_result.conflict_style }}</p>
+              </article>
+              <article class="manual-item">
+                <span class="manual-item-label">
+                  <i class="bi bi-people"></i> 함께 결정하기 편한 스타일
+                </span>
+                <p class="mb-0">{{ mbti_result.compatible_style }}</p>
+              </article>
+              <article class="manual-item manual-item-tip">
+                <span class="manual-item-label">
+                  <i class="bi bi-compass"></i> 다음 선택을 위한 한 줄
+                </span>
+                <p class="mb-0">{{ mbti_result.decision_tip }}</p>
+              </article>
             </div>
-            <div class="analysis-panel comic-panel" data-analysis-panel="comic">
-              <h2 class="h5 fw-bold mb-3">웃음 한 스푼 해석</h2>
-              <p class="mb-0">{{ set_result.comic_analysis }}</p>
+          </div>
+        </div>
+
+        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
+          <div class="card-body p-4 p-md-5">
+            <div class="result-section-heading mb-4">
+              <span class="result-section-icon compass-icon">
+                <i class="bi bi-bar-chart-steps"></i>
+              </span>
+              <div>
+                <p class="eyebrow mb-1">FOUR-AXIS COMPASS</p>
+                <h2 class="h4 fw-black mb-1">4축 선택 나침반</h2>
+                <p class="text-muted mb-0">
+                  A/B 번호가 아니라 각 선택에 연결된 성향 방향을 집계했습니다.
+                </p>
+              </div>
             </div>
-            <div class="analysis-panel professional-panel" data-analysis-panel="professional" hidden>
-              <h2 class="h5 fw-bold mb-3">선택 패턴 분석</h2>
-              <p class="mb-0">{{ set_result.professional_analysis }}</p>
+
+            <div class="axis-compass-list">
+              {% for axis in mbti_result.axis_summaries %}
+              <article class="axis-compass-item">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                  <div>
+                    <span class="axis-name">{{ axis.axis }}</span>
+                    <strong class="ms-2">{{ axis.axis_label }}</strong>
+                  </div>
+                  <span class="axis-balance-label">{{ axis.balance_label }}</span>
+                </div>
+                <div
+                  class="axis-compass-bar"
+                  role="img"
+                  aria-label="{{ axis.first_trait }} {{ axis.first_count }}회, {{ axis.second_trait }} {{ axis.second_count }}회"
+                >
+                  <span class="axis-side-first" style="width:{{ axis.first_percentage }}%"></span>
+                  <span class="axis-side-second" style="width:{{ axis.second_percentage }}%"></span>
+                </div>
+                <div class="d-flex justify-content-between gap-3 mt-2">
+                  <span class="small">
+                    <strong>{{ axis.first_trait }} {{ axis.first_count }}회</strong>
+                    <span class="text-muted d-none d-sm-inline">· {{ axis.first_label }}</span>
+                  </span>
+                  <span class="small text-end">
+                    <strong>{{ axis.second_trait }} {{ axis.second_count }}회</strong>
+                    <span class="text-muted d-none d-sm-inline">· {{ axis.second_label }}</span>
+                  </span>
+                </div>
+              </article>
+              {% endfor %}
             </div>
 
             <div class="share-box rounded-3 p-3 mt-4 text-center">
@@ -116,7 +205,7 @@
 
         <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
           <a
-            href="{% url 'games:instant_play' set_result.total_questions %}"
+            href="{% url 'games:instant_play' question_count %}"
             class="btn btn-outline-primary px-4"
           >
             <i class="bi bi-arrow-counterclockwise me-2"></i>마지막 선택 수정

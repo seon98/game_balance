@@ -886,6 +886,12 @@ class OpenAiMbtiAnalysisTest(TestCase):
         self.assertEqual(result['source'], 'local')
         self.assertTrue(result['title'])
         self.assertIn('여행 질문 1', result['description'])
+        self.assertTrue(result['strength'])
+        self.assertTrue(result['decision_tip'])
+        self.assertEqual(len(result['decisive_choices']), 3)
+        self.assertEqual(len(result['axis_summaries']), 4)
+        self.assertEqual(result['axis_summaries'][0]['first_count'], 2)
+        self.assertEqual(result['axis_summaries'][0]['second_count'], 0)
 
     def test_structured_openai_mbti_analysis_is_parsed_without_network(self) -> None:
         generated = GeneratedMbtiAnalysis(
@@ -895,6 +901,11 @@ class OpenAiMbtiAnalysisTest(TestCase):
                 '여행 질문 1에서는 실행을, 여행 질문 2에서는 가능성을 골랐습니다. '
                 '고민하는 척하지만 결국 새로운 문을 먼저 여는 선택 패턴입니다.'
             ),
+            strength='새로운 가능성을 빠르게 발견하고 바로 시험해봅니다.',
+            blind_spot='흥미로운 선택지를 늘리다가 마감 시간을 놓칠 수 있습니다.',
+            conflict_style='쟁점을 바로 꺼내고 가장 일관된 결론부터 찾습니다.',
+            compatible_style='방향을 정리하면서 변경 가능성을 열어두는 사람과 편합니다.',
+            decision_tip='선택지를 더 찾기 전에 결정 마감부터 정해보세요.',
         )
 
         class FakeResponses:
@@ -934,6 +945,8 @@ class OpenAiMbtiAnalysisTest(TestCase):
 
         self.assertEqual(result['mbti'], 'ENTP')
         self.assertEqual(result['source'], 'ai')
+        self.assertEqual(len(result['decisive_choices']), 3)
+        self.assertEqual(len(result['axis_summaries']), 4)
         self.assertIs(
             responses.arguments['text_format'],
             GeneratedMbtiAnalysis,
@@ -945,6 +958,11 @@ class OpenAiMbtiAnalysisTest(TestCase):
             mbti='ENTP',
             title='19금 성향 분석',
             description='선택을 재미있게 해석했습니다.',
+            strength='새로운 가능성을 빠르게 발견합니다.',
+            blind_spot='세부 조건을 놓칠 수 있습니다.',
+            conflict_style='논리를 정리한 뒤 의견을 말합니다.',
+            compatible_style='방향을 정리해주는 사람과 편합니다.',
+            decision_tip='결정 마감부터 정해보세요.',
         )
         client = SimpleNamespace(
             responses=SimpleNamespace(
@@ -1099,10 +1117,13 @@ class InstantGameFlowTest(TestCase):
         )
         result_page = self.client.get(reverse('games:instant_result'))
         self.assertContains(result_page, '플레이어님의 선택 속')
-        self.assertContains(result_page, 'A 4회')
-        self.assertContains(result_page, 'B 3회')
-        self.assertContains(result_page, '코믹 해석')
-        self.assertContains(result_page, '패턴 분석')
+        self.assertContains(result_page, '결정적 선택')
+        self.assertContains(result_page, '나의 선택 사용설명서')
+        self.assertContains(result_page, '4축 선택 나침반')
+        self.assertContains(result_page, '선택에서 드러난 강점')
+        self.assertContains(result_page, '다음 선택을 위한 한 줄')
+        self.assertNotContains(result_page, '코믹 해석')
+        self.assertNotContains(result_page, '패턴 분석')
         self.assertContains(result_page, '공식 MBTI 검사나 심리 진단이 아닌')
         self.assertFalse(GameSet.objects.exists())
         self.assertFalse(Question.objects.exists())
@@ -1179,6 +1200,37 @@ class InstantGameFlowTest(TestCase):
             'mbti': 'ENTP',
             'title': '반대편 문부터 여는 토론가',
             'description': '선택 기록 두 개를 근거로 만든 재미용 분석입니다.',
+            'strength': '새로운 가능성을 빠르게 발견합니다.',
+            'blind_spot': '세부 조건을 놓칠 수 있습니다.',
+            'conflict_style': '논리를 정리해 의견을 말합니다.',
+            'compatible_style': '방향을 정리해주는 사람과 편합니다.',
+            'decision_tip': '결정 마감부터 정해보세요.',
+            'decisive_choices': [
+                {
+                    'question_number': 1,
+                    'question': '여행 질문',
+                    'selected_option': '바로 떠난다',
+                    'mbti_axis': 'E/I',
+                    'selected_trait': 'E',
+                    'trait_label': '바깥 자극과 행동',
+                    'influence': 'E/I 축에서 E 방향에 힘을 보탠 선택',
+                },
+            ],
+            'axis_summaries': [
+                {
+                    'axis': 'E/I',
+                    'axis_label': '에너지 방향',
+                    'first_trait': 'E',
+                    'first_label': '바깥 자극과 행동',
+                    'first_count': 1,
+                    'first_percentage': 100,
+                    'second_trait': 'I',
+                    'second_label': '내면의 정리와 집중',
+                    'second_count': 0,
+                    'second_percentage': 0,
+                    'balance_label': 'E 방향 선택이 더 많음',
+                },
+            ],
             'source': 'ai',
         }
         self.generate_game('여행')

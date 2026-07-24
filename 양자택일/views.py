@@ -37,7 +37,6 @@ from .openai_mbti_analyzer import analyze_mbti_with_fallback
 from .question_generator import generate_question_drafts_with_fallback
 from .services import (
     TemplateResultGenerator,
-    build_choice_pattern_result,
     build_game_set_result,
     build_result,
     get_grade,
@@ -454,9 +453,22 @@ class InstantGameResultView(TemplateView):
             else '플레이어'
         )
         mbti_result = game.get('mbti_result')
+        required_result_fields = {
+            'mbti',
+            'title',
+            'description',
+            'strength',
+            'blind_spot',
+            'conflict_style',
+            'compatible_style',
+            'decision_tip',
+            'decisive_choices',
+            'axis_summaries',
+            'source',
+        }
         if (
             not isinstance(mbti_result, dict)
-            or not {'mbti', 'title', 'description', 'source'}.issubset(mbti_result)
+            or not required_result_fields.issubset(mbti_result)
         ):
             mbti_result = analyze_mbti_with_fallback(
                 api_key=settings.OPENAI_API_KEY,
@@ -470,10 +482,8 @@ class InstantGameResultView(TemplateView):
         context.update({
             'instant_game': game,
             'mbti_result': mbti_result,
-            'set_result': build_choice_pattern_result(
-                display_name=display_name,
-                choice_codes=answers,
-            ),
+            'display_name': display_name,
+            'question_count': len(game['questions']),
             'answer_items': answer_items,
             'categories': Category.objects.all(),
         })
