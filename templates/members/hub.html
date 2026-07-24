@@ -22,13 +22,16 @@
           <a href="{% url 'games:choice_report' %}" class="btn btn-outline-primary fw-bold px-4">
             <i class="bi bi-compass me-2"></i>선택 성향 리포트
           </a>
+          <a href="{% url 'games:account_settings' %}" class="btn btn-outline-secondary fw-bold px-4">
+            <i class="bi bi-gear me-2"></i>계정·데이터 관리
+          </a>
         </div>
       </div>
       <div class="col-lg-5">
         <div class="member-hub-summary">
           <article>
             <span>저장된 결과</span>
-            <strong>{{ saved_results|length }}</strong>
+            <strong>{{ saved_result_count }}</strong>
           </article>
           <article>
             <span>즐겨찾기</span>
@@ -53,6 +56,15 @@
       </div>
       <span class="member-feature-number">01</span>
     </div>
+    {% if unread_completed_invites %}
+    <div class="alert alert-success d-flex align-items-center justify-content-between gap-3 rounded-4 mb-3" role="status">
+      <span>
+        <i class="bi bi-bell-fill me-2"></i>
+        친구의 선택이 도착한 함께하기 결과가 {{ unread_completed_invites }}개 있어요.
+      </span>
+      <span class="badge rounded-pill bg-success">결과 도착</span>
+    </div>
+    {% endif %}
     <div class="together-promo-card">
       <div>
         <span class="together-promo-icon"><i class="bi bi-people-fill"></i></span>
@@ -79,13 +91,30 @@
     {% if recent_invites %}
     <div class="member-invite-list mt-3">
       {% for invite in recent_invites %}
-      <a href="{% url 'games:together_detail' invite.pk %}">
-        <span>
+      <article>
+        <a href="{% url 'games:together_detail' invite.pk %}">
           <strong>{{ invite.source_result.topic }}</strong>
-          <small>{{ invite.creator.username }}님의 초대 · {{ invite.get_status_display }}</small>
-        </span>
-        <i class="bi bi-chevron-right"></i>
-      </a>
+          <small>
+            {{ invite.creator.username }}님의 초대 · {{ invite.get_status_display }}
+            {% if invite.status == 'OPEN' %}· {{ invite.expires_at|date:"m.d H:i" }}까지{% endif %}
+          </small>
+        </a>
+        <div class="d-flex gap-1">
+          <a href="{% url 'games:together_detail' invite.pk %}" class="btn btn-sm btn-outline-primary">보기</a>
+          {% if invite.creator_id == user.id and invite.status == 'OPEN' %}
+          <form method="post" action="{% url 'games:together_cancel' invite.pk %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">취소</button>
+          </form>
+          {% elif invite.creator_id == user.id and invite.status != 'COMPLETED' %}
+          <form method="post" action="{% url 'games:together_reissue' invite.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-primary">재발급</button>
+          </form>
+          {% endif %}
+        </div>
+      </article>
       {% endfor %}
     </div>
     {% endif %}
@@ -109,11 +138,20 @@
           <h3 class="h5 fw-black">최근 관심 키워드</h3>
           <p class="small text-muted">지금까지 자주 플레이한 주제로 새로운 질문을 만듭니다.</p>
           <div class="member-keyword-list">
+            {% for keyword in recommendations.liked_topics %}
+            <form method="post" action="{% url 'games:instant_generate' %}">
+              {% csrf_token %}
+              <input type="hidden" name="keywords" value="{{ keyword }}">
+              <input type="hidden" name="recommendation_source" value="liked">
+              <button type="submit"><i class="bi bi-heart-fill"></i> #{{ keyword }}</button>
+            </form>
+            {% endfor %}
             {% for keyword, count in recommendations.recent_interests %}
             <form method="post" action="{% url 'games:instant_generate' %}">
               {% csrf_token %}
               <input type="hidden" name="keywords" value="{{ keyword }}">
-              <button type="submit">#{{ keyword }} <small>{{ count }}회</small></button>
+              <input type="hidden" name="recommendation_source" value="recent">
+              <button type="submit">#{{ keyword }} <small>관심도 {{ count }}</small></button>
             </form>
             {% empty %}
             <a href="{% url 'games:index' %}#quick-play">첫 관심 키워드 만들기</a>
@@ -131,6 +169,7 @@
             <form method="post" action="{% url 'games:instant_generate' %}">
               {% csrf_token %}
               <input type="hidden" name="keywords" value="{{ keyword }}">
+              <input type="hidden" name="recommendation_source" value="opposite">
               <button type="submit">#{{ keyword }}</button>
             </form>
             {% empty %}
@@ -149,6 +188,7 @@
             <form method="post" action="{% url 'games:instant_generate' %}">
               {% csrf_token %}
               <input type="hidden" name="keywords" value="{{ keyword }}">
+              <input type="hidden" name="recommendation_source" value="popular">
               <button type="submit">#{{ keyword }}</button>
             </form>
             {% empty %}
@@ -167,6 +207,7 @@
             <form method="post" action="{% url 'games:instant_generate' %}">
               {% csrf_token %}
               <input type="hidden" name="keywords" value="{{ keyword }}">
+              <input type="hidden" name="recommendation_source" value="seasonal">
               <button type="submit">#{{ keyword }}</button>
             </form>
             {% endfor %}
@@ -174,6 +215,42 @@
         </article>
       </div>
     </div>
+
+    {% if recommendations.feedback_topics %}
+    <div class="recommendation-feedback-card mt-4">
+      <div>
+        <span class="eyebrow">TUNE YOUR PICKS</span>
+        <h3 class="h5 fw-black mt-1 mb-1">추천 취향 조정</h3>
+        <p class="small text-muted mb-0">
+          관심 있는 주제와 보고 싶지 않은 주제를 알려주면 다음 추천부터 반영됩니다.
+        </p>
+      </div>
+      <div class="recommendation-feedback-list">
+        {% for keyword in recommendations.feedback_topics %}
+        <div>
+          <strong>#{{ keyword }}</strong>
+          <form method="post" action="{% url 'games:recommendation_feedback' %}">
+            {% csrf_token %}
+            <input type="hidden" name="keyword" value="{{ keyword }}">
+            <input type="hidden" name="rating" value="LIKE">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" aria-label="{{ keyword }} 관심 있음"><i class="bi bi-hand-thumbs-up"></i></button>
+          </form>
+          <form method="post" action="{% url 'games:recommendation_feedback' %}">
+            {% csrf_token %}
+            <input type="hidden" name="keyword" value="{{ keyword }}">
+            <input type="hidden" name="rating" value="HIDE">
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <button type="submit" aria-label="{{ keyword }} 추천 제외"><i class="bi bi-eye-slash"></i></button>
+          </form>
+        </div>
+        {% endfor %}
+      </div>
+      {% if recommendations.hidden_count %}
+      <small class="text-muted">현재 추천에서 제외한 주제 {{ recommendations.hidden_count }}개</small>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 </section>
 
@@ -195,6 +272,7 @@
         <form method="post" action="{% url 'games:instant_generate' %}">
           {% csrf_token %}
           <input type="hidden" name="keywords" value="{{ theme.keywords }}">
+          <input type="hidden" name="recommendation_source" value="theme">
           <button type="submit" class="btn btn-sm btn-outline-primary fw-bold">
             이 테마 시작하기
           </button>

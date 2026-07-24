@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -8,6 +9,10 @@ from django.db import models
 from django.utils import timezone
 
 from .moderation import requires_reference, validate_safe_text
+
+
+def default_invite_expiry():
+    return timezone.now() + timedelta(days=7)
 
 
 class ResultGrade(models.TextChoices):
@@ -331,6 +336,12 @@ class SavedInstantResult(models.Model):
     game_token = models.CharField(max_length=32, verbose_name='즉석 게임 식별자')
     topic = models.CharField(max_length=120, verbose_name='게임 주제')
     keywords = models.JSONField(default=list, verbose_name='키워드')
+    keyword_text = models.CharField(
+        max_length=160,
+        blank=True,
+        editable=False,
+        verbose_name='키워드 검색문',
+    )
     mbti = models.CharField(max_length=4, verbose_name='선택 캐릭터')
     title = models.CharField(max_length=120, verbose_name='결과 타이틀')
     description = models.TextField(verbose_name='결과 설명')
@@ -354,11 +365,27 @@ class SavedInstantResult(models.Model):
     def __str__(self) -> str:
         return f'{self.user} - {self.topic} ({self.mbti})'
 
+    def save(self, *args, **kwargs):
+        if isinstance(self.keywords, list):
+            self.keyword_text = ' '.join(
+                str(keyword).strip()
+                for keyword in self.keywords
+                if str(keyword).strip()
+            )[:160]
+        else:
+            self.keyword_text = ''
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'keyword_text'}
+        super().save(*args, **kwargs)
+
 
 class ChoiceComparisonInvite(models.Model):
     class Status(models.TextChoices):
         OPEN = 'OPEN', '참여 대기'
         COMPLETED = 'COMPLETED', '비교 완료'
+        CANCELED = 'CANCELED', '초대 취소'
+        EXPIRED = 'EXPIRED', '기간 만료'
 
     id = models.UUIDField(
         primary_key=True,
@@ -395,7 +422,17 @@ class ChoiceComparisonInvite(models.Model):
         verbose_name='상태',
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='초대 생성일')
+    expires_at = models.DateTimeField(
+        default=default_invite_expiry,
+        verbose_name='초대 만료일',
+    )
     completed_at = models.DateTimeField(null=True, blank=True, verbose_name='비교 완료일')
+    canceled_at = models.DateTimeField(null=True, blank=True, verbose_name='초대 취소일')
+    creator_seen_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='초대자 결과 확인일',
+    )
 
     class Meta:
         verbose_name = '친구·연인 함께하기 초대'
@@ -404,6 +441,112 @@ class ChoiceComparisonInvite(models.Model):
 
     def __str__(self) -> str:
         return f'{self.creator}의 {self.source_result.topic} 초대'
+
+    @property
+    def is_expired(self) -> bool:
+        return (
+            self.status == self.Status.EXPIRED
+            or (
+                self.status == self.Status.OPEN
+                and self.expires_at <= timezone.now()
+            )
+        )
+
+    def expire_if_needed(self) -> bool:
+        if self.status == self.Status.OPEN and self.expires_at <= timezone.now():
+            self.status = self.Status.EXPIRED
+            self.save(update_fields=['status'])
+            return True
+        return False
+
+
+class MemberGameEvent(models.Model):
+    class EventType(models.TextChoices):
+        STARTED = 'STARTED', '게임 시작'
+        COMPLETED = 'COMPLETED', '게임 완료'
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='member_game_events',
+        verbose_name='회원',
+    )
+    game_token = models.CharField(
+        max_length=32,
+        blank=True,
+        verbose_name='즉석 게임 식별자',
+    )
+    keyword = models.CharField(max_length=30, verbose_name='키워드')
+    event_type = models.CharField(
+        max_length=12,
+        choices=EventType.choices,
+        verbose_name='이벤트 종류',
+    )
+    source = models.CharField(
+        max_length=32,
+        blank=True,
+        verbose_name='추천 출처',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='발생일')
+
+    class Meta:
+        verbose_name = '회원 게임 이벤트'
+        verbose_name_plural = '회원 게임 이벤트 목록'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(
+                fields=['user', 'event_type', '-created_at'],
+                name='member_event_user_type_idx',
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'game_token', 'keyword', 'event_type'],
+                name='unique_member_game_event_stage',
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f'{self.user} - {self.keyword} ({self.get_event_type_display()})'
+
+
+class RecommendationFeedback(models.Model):
+    class Rating(models.TextChoices):
+        LIKE = 'LIKE', '관심 있음'
+        HIDE = 'HIDE', '관심 없음'
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recommendation_feedback',
+        verbose_name='회원',
+    )
+    keyword = models.CharField(max_length=30, verbose_name='추천 키워드')
+    rating = models.CharField(
+        max_length=8,
+        choices=Rating.choices,
+        verbose_name='선호도',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='최초 입력일')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='최근 수정일')
+
+    class Meta:
+        verbose_name = '추천 선호 피드백'
+        verbose_name_plural = '추천 선호 피드백 목록'
+        ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'keyword'],
+                name='unique_recommendation_feedback_per_keyword',
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        self.keyword = self.keyword.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self) -> str:
+        return f'{self.user} - {self.keyword} ({self.get_rating_display()})'
 
 
 class ResultTemplate(models.Model):

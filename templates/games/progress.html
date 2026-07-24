@@ -6,20 +6,16 @@
 <section class="member-history-hero py-5">
   <div class="container">
     <div class="row justify-content-center">
-      <div class="col-lg-9">
+      <div class="col-lg-10">
         <span class="eyebrow">MY CHOICE ARCHIVE</span>
         <h1 class="display-6 fw-black mt-2 mb-2">
-          {% if user.is_authenticated %}
-          {{ user.username }}님의 결과 기록
-          {% else %}
-          나만의 결과 기록
-          {% endif %}
+          {% if user.is_authenticated %}{{ user.username }}님의 결과 기록{% else %}나만의 결과 기록{% endif %}
         </h1>
         <p class="text-muted mb-0">
           {% if user.is_authenticated %}
-          키워드 게임을 완료하면 선택 캐릭터와 사용설명서가 이곳에 자동으로 저장됩니다.
+          키워드와 캐릭터로 지난 선택을 찾고, 즐겨찾기한 사용설명서를 언제든 다시 확인하세요.
           {% else %}
-          회원이 되면 플레이할 때마다 결과가 쌓이고 언제든 다시 확인할 수 있습니다.
+          회원이 되면 플레이할 때마다 결과가 쌓이고 다른 기기에서도 이어서 볼 수 있습니다.
           {% endif %}
         </p>
       </div>
@@ -30,155 +26,198 @@
 <section class="pb-5">
   <div class="container">
     <div class="row justify-content-center">
-      <div class="col-lg-9">
+      <div class="col-lg-10">
         {% if user.is_authenticated %}
-          {% if saved_instant_results %}
-          <div class="d-flex justify-content-between align-items-center gap-3 mb-4">
-            <h2 class="h4 fw-black mb-0">저장된 키워드 결과</h2>
-            <div class="d-flex flex-wrap gap-2">
-              <a href="{% url 'games:choice_report' %}" class="btn btn-sm btn-outline-primary fw-bold">
-                <i class="bi bi-compass me-1"></i>누적 리포트
-              </a>
-              <a href="{% url 'games:member_hub' %}" class="btn btn-sm btn-primary fw-bold">
-                <i class="bi bi-gem me-1"></i>회원 혜택
-              </a>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+          <div>
+            <h2 class="h4 fw-black mb-1">저장된 키워드 결과</h2>
+            <p class="small text-muted mb-0">전체 {{ saved_result_count }}개 · 현재 조건 {{ filtered_result_count }}개</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'games:choice_report' %}" class="btn btn-sm btn-outline-primary fw-bold">
+              <i class="bi bi-compass me-1"></i>누적 리포트
+            </a>
+            <a href="{% url 'games:member_hub' %}" class="btn btn-sm btn-primary fw-bold">
+              <i class="bi bi-gem me-1"></i>회원 혜택
+            </a>
+          </div>
+        </div>
+
+        {% if has_saved_results %}
+        <form method="get" class="archive-filter-card mb-4" aria-label="선택 아카이브 검색과 필터">
+          <div class="archive-search-field">
+            <label for="archiveQuery" class="form-label small fw-bold">키워드·결과 검색</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-search"></i></span>
+              <input
+                id="archiveQuery"
+                type="search"
+                name="q"
+                value="{{ archive_filters.q }}"
+                class="form-control"
+                placeholder="예: 여행, 지휘관"
+              >
             </div>
           </div>
-
-          <div class="saved-result-list">
-            {% for result in saved_instant_results %}
-            <details class="saved-result-card">
-              <summary>
-                <div class="saved-result-code" aria-label="MBTI {{ result.mbti }}">
-                  {% for letter in result.mbti %}<span>{{ letter }}</span>{% endfor %}
-                </div>
-                <div class="saved-result-summary">
-                  <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
-                    <span class="small text-primary fw-bold">{{ result.topic }}</span>
-                    <span class="x-small text-muted">{{ result.updated_at|date:"Y.m.d H:i" }}</span>
-                  </div>
-                  <h2 class="h5 fw-black mb-1">“{{ result.title }}”</h2>
-                  <p class="small text-muted mb-0">{{ result.description|truncatechars:110 }}</p>
-                </div>
-                <i class="bi bi-chevron-down saved-result-chevron" aria-hidden="true"></i>
-              </summary>
-
-              <div class="saved-result-detail">
-                <p class="saved-result-description">{{ result.description }}</p>
-                <div class="saved-result-manual">
-                  <article>
-                    <strong><i class="bi bi-gem"></i> 선택에서 드러난 강점</strong>
-                    <p>{{ result.result_data.strength }}</p>
-                  </article>
-                  <article>
-                    <strong><i class="bi bi-exclamation-circle"></i> 놓치기 쉬운 함정</strong>
-                    <p>{{ result.result_data.blind_spot }}</p>
-                  </article>
-                  <article>
-                    <strong><i class="bi bi-chat-square-dots"></i> 갈등 상황의 반응</strong>
-                    <p>{{ result.result_data.conflict_style }}</p>
-                  </article>
-                  <article>
-                    <strong><i class="bi bi-people"></i> 함께 결정하기 편한 스타일</strong>
-                    <p>{{ result.result_data.compatible_style }}</p>
-                  </article>
-                </div>
-                <div class="saved-result-tip">
-                  <strong><i class="bi bi-compass"></i> 다음 선택을 위한 한 줄</strong>
-                  <p class="mb-0">{{ result.result_data.decision_tip }}</p>
-                </div>
-                <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
-                  <div class="d-flex flex-wrap gap-2">
-                    {% for keyword in result.keywords %}
-                    <span class="badge rounded-pill bg-light text-secondary">#{{ keyword }}</span>
-                    {% endfor %}
-                  </div>
-                  <div class="d-flex flex-wrap gap-2">
-                    <form
-                      method="post"
-                      action="{% url 'games:saved_instant_result_favorite' result.pk %}"
-                    >
-                      {% csrf_token %}
-                      <button
-                        type="submit"
-                        class="btn btn-sm {% if result.is_favorite %}btn-warning{% else %}btn-outline-warning{% endif %}"
-                        aria-label="{% if result.is_favorite %}즐겨찾기 해제{% else %}즐겨찾기 추가{% endif %}"
-                      >
-                        <i class="bi {% if result.is_favorite %}bi-star-fill{% else %}bi-star{% endif %} me-1"></i>
-                        {% if result.is_favorite %}즐겨찾기됨{% else %}즐겨찾기{% endif %}
-                      </button>
-                    </form>
-                    {% if result.game_data.questions %}
-                    <form
-                      method="post"
-                      action="{% url 'games:together_create' result.pk %}"
-                    >
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-people me-1"></i>함께하기
-                      </button>
-                    </form>
-                    {% endif %}
-                    <form
-                      method="post"
-                      action="{% url 'games:saved_instant_result_delete' result.pk %}"
-                    >
-                      {% csrf_token %}
-                      <button type="submit" class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-trash3 me-1"></i>기록 삭제
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              </div>
-            </details>
-            {% endfor %}
+          <div>
+            <label for="archiveMbti" class="form-label small fw-bold">캐릭터</label>
+            <select id="archiveMbti" name="mbti" class="form-select">
+              <option value="">전체 MBTI</option>
+              {% for mbti in archive_mbti_choices %}
+              <option value="{{ mbti }}" {% if archive_filters.mbti == mbti %}selected{% endif %}>{{ mbti }}</option>
+              {% endfor %}
+            </select>
           </div>
-          {% else %}
-          <div class="card border-0 shadow-sm rounded-4">
-            <div class="card-body p-5 text-center">
-              <div class="empty-state-icon mx-auto mb-3">
-                <i class="bi bi-clock-history"></i>
+          <div>
+            <label for="archivePeriod" class="form-label small fw-bold">저장 기간</label>
+            <select id="archivePeriod" name="period" class="form-select">
+              <option value="all" {% if archive_filters.period == 'all' %}selected{% endif %}>전체 기간</option>
+              <option value="30" {% if archive_filters.period == '30' %}selected{% endif %}>최근 30일</option>
+              <option value="90" {% if archive_filters.period == '90' %}selected{% endif %}>최근 90일</option>
+              <option value="365" {% if archive_filters.period == '365' %}selected{% endif %}>최근 1년</option>
+            </select>
+          </div>
+          <label class="archive-favorite-check">
+            <input
+              type="checkbox"
+              name="favorite"
+              value="1"
+              {% if archive_filters.favorite %}checked{% endif %}
+            >
+            <span><i class="bi bi-star-fill"></i> 즐겨찾기만</span>
+          </label>
+          <button type="submit" class="btn btn-primary fw-bold">검색</button>
+          <a href="{% url 'games:progress' %}" class="btn btn-outline-secondary">초기화</a>
+        </form>
+        {% endif %}
+
+        {% if saved_instant_results %}
+        <div class="saved-result-list">
+          {% for result in saved_instant_results %}
+          <details class="saved-result-card">
+            <summary>
+              <div class="saved-result-code" aria-label="MBTI {{ result.mbti }}">
+                {% for letter in result.mbti %}<span>{{ letter }}</span>{% endfor %}
               </div>
-              <h2 class="h5 fw-black">아직 저장된 결과가 없어요</h2>
-              <p class="text-muted mb-4">키워드 게임을 완료하면 첫 결과가 자동으로 저장됩니다.</p>
-              <a href="{% url 'games:index' %}" class="btn btn-primary fw-bold px-4">
-                첫 키워드 게임 시작하기
-              </a>
+              <div class="saved-result-summary">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+                  <span class="small text-primary fw-bold">{{ result.topic }}</span>
+                  {% if result.is_favorite %}<i class="bi bi-star-fill text-warning" aria-label="즐겨찾기"></i>{% endif %}
+                  <span class="x-small text-muted">{{ result.updated_at|date:"Y.m.d H:i" }}</span>
+                </div>
+                <h2 class="h5 fw-black mb-1">“{{ result.title }}”</h2>
+                <p class="small text-muted mb-0">{{ result.description|truncatechars:110 }}</p>
+              </div>
+              <i class="bi bi-chevron-down saved-result-chevron" aria-hidden="true"></i>
+            </summary>
+
+            <div class="saved-result-detail">
+              <p class="saved-result-description">{{ result.description }}</p>
+              <div class="saved-result-manual">
+                <article>
+                  <strong><i class="bi bi-gem"></i> 선택에서 드러난 강점</strong>
+                  <p>{{ result.result_data.strength }}</p>
+                </article>
+                <article>
+                  <strong><i class="bi bi-exclamation-circle"></i> 놓치기 쉬운 함정</strong>
+                  <p>{{ result.result_data.blind_spot }}</p>
+                </article>
+                <article>
+                  <strong><i class="bi bi-chat-square-dots"></i> 갈등 상황의 반응</strong>
+                  <p>{{ result.result_data.conflict_style }}</p>
+                </article>
+                <article>
+                  <strong><i class="bi bi-people"></i> 함께 결정하기 편한 스타일</strong>
+                  <p>{{ result.result_data.compatible_style }}</p>
+                </article>
+              </div>
+              <div class="saved-result-tip">
+                <strong><i class="bi bi-compass"></i> 다음 선택을 위한 한 줄</strong>
+                <p class="mb-0">{{ result.result_data.decision_tip }}</p>
+              </div>
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mt-4">
+                <div class="d-flex flex-wrap gap-2">
+                  {% for keyword in result.keywords %}
+                  <span class="badge rounded-pill bg-light text-secondary">#{{ keyword }}</span>
+                  {% endfor %}
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                  <form method="post" action="{% url 'games:saved_instant_result_favorite' result.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button
+                      type="submit"
+                      class="btn btn-sm {% if result.is_favorite %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                    >
+                      <i class="bi {% if result.is_favorite %}bi-star-fill{% else %}bi-star{% endif %} me-1"></i>
+                      {% if result.is_favorite %}즐겨찾기됨{% else %}즐겨찾기{% endif %}
+                    </button>
+                  </form>
+                  {% if result.game_data.questions %}
+                  <form method="post" action="{% url 'games:together_create' result.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                      <i class="bi bi-people me-1"></i>함께하기
+                    </button>
+                  </form>
+                  {% endif %}
+                  <form method="post" action="{% url 'games:saved_instant_result_delete' result.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-trash3 me-1"></i>기록 삭제
+                    </button>
+                  </form>
+                </div>
+              </div>
             </div>
+          </details>
+          {% endfor %}
+        </div>
+
+        {% if saved_instant_results.paginator.num_pages > 1 %}
+        <nav class="mt-4" aria-label="선택 아카이브 페이지">
+          <ul class="pagination justify-content-center">
+            <li class="page-item {% if not saved_instant_results.has_previous %}disabled{% endif %}">
+              <a class="page-link" href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={% if saved_instant_results.has_previous %}{{ saved_instant_results.previous_page_number }}{% else %}1{% endif %}">이전</a>
+            </li>
+            <li class="page-item disabled">
+              <span class="page-link">{{ saved_instant_results.number }} / {{ saved_instant_results.paginator.num_pages }}</span>
+            </li>
+            <li class="page-item {% if not saved_instant_results.has_next %}disabled{% endif %}">
+              <a class="page-link" href="?{% if filter_query %}{{ filter_query }}&{% endif %}page={% if saved_instant_results.has_next %}{{ saved_instant_results.next_page_number }}{% else %}{{ saved_instant_results.paginator.num_pages }}{% endif %}">다음</a>
+            </li>
+          </ul>
+        </nav>
+        {% endif %}
+        {% elif has_saved_results %}
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body p-5 text-center">
+            <div class="empty-state-icon mx-auto mb-3"><i class="bi bi-search"></i></div>
+            <h2 class="h5 fw-black">조건에 맞는 결과가 없어요</h2>
+            <p class="text-muted mb-4">검색어나 기간, 즐겨찾기 조건을 바꿔보세요.</p>
+            <a href="{% url 'games:progress' %}" class="btn btn-outline-primary fw-bold">필터 초기화</a>
           </div>
-          {% endif %}
+        </div>
+        {% else %}
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body p-5 text-center">
+            <div class="empty-state-icon mx-auto mb-3"><i class="bi bi-clock-history"></i></div>
+            <h2 class="h5 fw-black">아직 저장된 결과가 없어요</h2>
+            <p class="text-muted mb-4">키워드 게임을 완료하면 첫 결과가 자동으로 저장됩니다.</p>
+            <a href="{% url 'games:index' %}" class="btn btn-primary fw-bold px-4">첫 키워드 게임 시작하기</a>
+          </div>
+        </div>
+        {% endif %}
         {% else %}
         <div class="card member-history-gate border-0 shadow-sm rounded-4">
           <div class="card-body p-4 p-md-5 text-center">
             <span class="member-lock-icon mb-3"><i class="bi bi-cloud-lock"></i></span>
             <h2 class="h4 fw-black mb-3">로그인하고 결과를 계속 보관하세요</h2>
-            <p class="text-muted mb-4">
-              결과 자동 저장, 지난 사용설명서 다시보기, 여러 기기에서 기록 확인을 이용할 수 있습니다.
-            </p>
+            <p class="text-muted mb-4">결과 자동 저장, 사용설명서 다시보기, 여러 기기 기록 확인을 이용할 수 있습니다.</p>
             <div class="d-flex flex-wrap justify-content-center gap-2">
-              <a
-                href="{% url 'games:login' %}?next={{ request.path|urlencode }}"
-                class="btn btn-primary fw-bold px-4"
-              >로그인</a>
-              <a
-                href="{% url 'games:signup' %}?next={{ request.path|urlencode }}"
-                class="btn btn-outline-primary fw-bold px-4"
-              >무료 회원가입</a>
-            </div>
-          </div>
-        </div>
-        {% endif %}
-
-        {% if total_questions %}
-        <div class="card border-0 shadow-sm rounded-4 mt-4">
-          <div class="card-body p-4">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <strong>준비된 게임 진행률</strong>
-              <span>{{ completed_questions }} / {{ total_questions }} 완료</span>
-            </div>
-            <div class="progress" role="progressbar" aria-label="준비된 게임 진행률">
-              <div class="progress-bar bg-warning" style="width:{{ completion_percentage }}%"></div>
+              <a href="{% url 'games:login' %}?next={{ request.path|urlencode }}" class="btn btn-primary fw-bold px-4">로그인</a>
+              <a href="{% url 'games:signup' %}?next={{ request.path|urlencode }}" class="btn btn-outline-primary fw-bold px-4">무료 회원가입</a>
             </div>
           </div>
         </div>

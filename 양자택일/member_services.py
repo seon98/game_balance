@@ -96,6 +96,9 @@ OPPOSITE_TOPICS = {
     'P': '완벽한 일정 관리',
 }
 
+MIN_REPORT_RESULTS = 3
+MIN_MONTHLY_RESULTS = 2
+
 
 def _result_axis_counts(result: Any) -> dict[str, tuple[int, int]]:
     counts = {
@@ -171,6 +174,11 @@ def build_choice_report(
     previous_counts = _period_axis_counts(previous_results)
     axis_reports = []
     trait_scores: Counter[str] = Counter()
+    is_ready = len(result_list) >= MIN_REPORT_RESULTS
+    can_compare_months = (
+        len(current_results) >= MIN_MONTHLY_RESULTS
+        and len(previous_results) >= MIN_MONTHLY_RESULTS
+    )
     for axis, first, second, label in AXES:
         total = all_counts[axis]
         current = current_counts[axis]
@@ -181,7 +189,11 @@ def build_choice_report(
         trait_scores[first] += total[0]
         trait_scores[second] += total[1]
 
-        if not sum(current):
+        if not is_ready:
+            shift_label = '표본을 모으는 중'
+        elif not can_compare_months:
+            shift_label = '월간 비교 표본 부족'
+        elif not sum(current):
             shift_label = '이번 달 기록 없음'
         elif not sum(previous):
             shift_label = '이번 달 첫 기록'
@@ -205,6 +217,7 @@ def build_choice_report(
             'second_percentage': 100 - first_percentage,
             'dominant': first if total[0] >= total[1] else second,
             'shift_label': shift_label,
+            'show_direction': is_ready and sum(total) > 0,
         })
 
     current_mbti = Counter(result.mbti for result in current_results)
@@ -223,15 +236,34 @@ def build_choice_report(
         for trait, _count in trait_scores.most_common(4)
         if _count > 0
     ]
+    if len(result_list) < MIN_REPORT_RESULTS:
+        confidence_label = '탐색 중'
+    elif len(result_list) < 6:
+        confidence_label = '초기 방향'
+    elif len(result_list) < 12:
+        confidence_label = '안정화 중'
+    else:
+        confidence_label = '충분히 누적'
     return {
         'total_results': len(result_list),
         'current_month_count': len(current_results),
         'previous_month_count': len(previous_results),
-        'representative_mbti': representative,
+        'representative_mbti': representative if is_ready else None,
+        'emerging_mbti': representative,
         'frequent_mbti': all_mbti.most_common(4),
         'axis_reports': axis_reports,
         'top_keywords': keyword_counts.most_common(6),
         'value_keywords': value_keywords,
+        'is_ready': is_ready,
+        'remaining_to_ready': max(MIN_REPORT_RESULTS - len(result_list), 0),
+        'minimum_results': MIN_REPORT_RESULTS,
+        'minimum_monthly_results': MIN_MONTHLY_RESULTS,
+        'confidence_label': confidence_label,
+        'confidence_percentage': min(
+            round(len(result_list) / 12 * 100),
+            100,
+        ),
+        'can_compare_months': can_compare_months,
     }
 
 
@@ -239,13 +271,38 @@ def build_member_recommendations(
     results: Iterable[Any],
     *,
     popular_keywords: Iterable[str] = (),
+    events: Iterable[Any] = (),
+    feedback: Iterable[Any] = (),
     month: int | None = None,
 ) -> dict[str, Any]:
     result_list = list(results)
     keyword_counts = Counter()
     for result in result_list:
         if isinstance(result.keywords, list):
-            keyword_counts.update(str(keyword) for keyword in result.keywords)
+            for keyword in result.keywords:
+                keyword_counts[str(keyword)] += 3
+    for event in events:
+        if getattr(event, 'event_type', '') == 'STARTED':
+            keyword_counts[str(event.keyword)] += 1
+
+    feedback_list = list(feedback)
+    hidden_keys = {
+        str(item.keyword).casefold()
+        for item in feedback_list
+        if getattr(item, 'rating', '') == 'HIDE'
+    }
+    liked_topics = [
+        str(item.keyword)
+        for item in feedback_list
+        if getattr(item, 'rating', '') == 'LIKE'
+    ]
+    for topic in liked_topics:
+        keyword_counts[topic] += 4
+    keyword_counts = Counter({
+        keyword: count
+        for keyword, count in keyword_counts.items()
+        if keyword.casefold() not in hidden_keys
+    })
     mbti_counts = Counter(result.mbti for result in result_list)
     representative = mbti_counts.most_common(1)[0][0] if mbti_counts else ''
     opposite_topics = []
@@ -262,13 +319,36 @@ def build_member_recommendations(
         for theme in MEMBER_THEMES
         if theme['name'].casefold() not in played_text
     ]
+    opposite_topics = [
+        topic
+        for topic in opposite_topics
+        if topic.casefold() not in hidden_keys
+    ]
+    filtered_popular_topics = [
+        topic
+        for topic in dict.fromkeys(popular_keywords)
+        if str(topic).casefold() not in hidden_keys
+    ][:5]
+    seasonal_topics = [
+        topic
+        for topic in SEASONAL_KEYWORDS[month or timezone.localdate().month]
+        if topic.casefold() not in hidden_keys
+    ]
+    feedback_topics = list(dict.fromkeys([
+        *opposite_topics,
+        *filtered_popular_topics,
+        *seasonal_topics,
+    ]))[:8]
     return {
         'recent_interests': keyword_counts.most_common(5),
         'opposite_topics': opposite_topics[:4],
-        'popular_topics': list(dict.fromkeys(popular_keywords))[:5],
-        'seasonal_topics': SEASONAL_KEYWORDS[month or timezone.localdate().month],
+        'popular_topics': filtered_popular_topics,
+        'seasonal_topics': seasonal_topics,
         'themes': MEMBER_THEMES,
         'fresh_themes': fresh_themes[:3] or MEMBER_THEMES[:3],
+        'liked_topics': liked_topics[:5],
+        'hidden_count': len(hidden_keys),
+        'feedback_topics': feedback_topics,
     }
 
 

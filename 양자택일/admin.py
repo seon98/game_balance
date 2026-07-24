@@ -10,7 +10,9 @@ from .models import (
     ChoiceComparisonInvite,
     Choice,
     GameSet,
+    MemberGameEvent,
     Question,
+    RecommendationFeedback,
     ResultTemplate,
     SavedInstantResult,
     Vote,
@@ -191,6 +193,7 @@ class SavedInstantResultAdmin(admin.ModelAdmin):
         'game_token',
         'topic',
         'keywords',
+        'keyword_text',
         'mbti',
         'title',
         'description',
@@ -213,6 +216,7 @@ class ChoiceComparisonInviteAdmin(admin.ModelAdmin):
         'source_result',
         'status',
         'created_at',
+        'expires_at',
         'completed_at',
     ]
     list_filter = ['status', 'created_at']
@@ -226,7 +230,45 @@ class ChoiceComparisonInviteAdmin(admin.ModelAdmin):
         'participant_result',
         'status',
         'created_at',
+        'expires_at',
         'completed_at',
+        'canceled_at',
+        'creator_seen_at',
+    ]
+
+    def has_add_permission(self, request):  # type: ignore[override]
+        return False
+
+
+@admin.register(MemberGameEvent)
+class MemberGameEventAdmin(admin.ModelAdmin):
+    list_display = ['user', 'keyword', 'event_type', 'source', 'created_at']
+    list_filter = ['event_type', 'source', 'created_at']
+    search_fields = ['user__username', 'keyword']
+    readonly_fields = [
+        'user',
+        'game_token',
+        'keyword',
+        'event_type',
+        'source',
+        'created_at',
+    ]
+
+    def has_add_permission(self, request):  # type: ignore[override]
+        return False
+
+
+@admin.register(RecommendationFeedback)
+class RecommendationFeedbackAdmin(admin.ModelAdmin):
+    list_display = ['user', 'keyword', 'rating', 'updated_at']
+    list_filter = ['rating', 'updated_at']
+    search_fields = ['user__username', 'keyword']
+    readonly_fields = [
+        'user',
+        'keyword',
+        'rating',
+        'created_at',
+        'updated_at',
     ]
 
     def has_add_permission(self, request):  # type: ignore[override]

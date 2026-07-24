@@ -21,7 +21,7 @@
 | Python | 3.9 | **3.12** |
 | Django | 4.2 | **5.2 LTS** |
 | 프론트엔드 | 순수 CSS (자체 구현) | **Bootstrap 5** |
-| 모델 | BalanceGame + Choice (2개) | **Category, GameSet, Question, Choice, Vote, SavedInstantResult, ChoiceComparisonInvite, ResultTemplate** |
+| 모델 | BalanceGame + Choice (2개) | **Category, GameSet, Question, Choice, Vote, SavedInstantResult, ChoiceComparisonInvite, MemberGameEvent, RecommendationFeedback, ResultTemplate** |
 | 결과 | 투표 비율만 표시 | **문항별 7단계 등급 + 답변 기반 MBTI 캐릭터·선택 사용설명서** |
 | 플레이 흐름 | 랜덤 질문 반복 가능 | **선택 후 자동 진행 + 이전 선택 수정 + 진행률·선택 기록** |
 | 사용자 기능 | 없음 | **비회원 즉시 플레이 + 회원 상세 결과·아카이브·누적 리포트·친구와 함께하기** |
@@ -29,7 +29,7 @@
 | 환경변수 | 하드코딩 | **django-environ (.env)** |
 | 공식 콘텐츠 | 질문 단위 샘플 | **필요한 경우에만 샘플 데이터 생성 가능** |
 | 진입 경험 | 메인으로 즉시 이동 | **전체 화면 소개 + 클릭 전환 애니메이션** |
-| 테스트 | 없음 | **80개 테스트 (100% 통과)** |
+| 테스트 | 없음 | **91개 테스트 (100% 통과)** |
 
 ### 핵심 설계 결정
 
@@ -141,13 +141,14 @@ with transaction.atomic():
 #### 11. 회원 선택 연구소
 
 - 완료한 키워드, 캐릭터, 상세 사용설명서, 실제 문항과 답변을 계정에 자동 저장
-- 아카이브 즐겨찾기와 여러 기기에서 동일한 기록 확인
-- 여러 게임을 합산한 4축 나침반, 지난달 대비 변화, 자주 고른 가치관과 이번 달 대표 캐릭터 제공
+- 아카이브 검색·MBTI·기간·즐겨찾기 필터와 10개 단위 페이지 구분
+- 3게임 미만은 `탐색 중`으로 안내하고 표본 신뢰도와 월간 비교 가능 여부 표시
 - 완료한 게임으로 1회용 초대 링크를 만들어 친구·연인과 같은 7개 문항 플레이
-- 두 사람의 일치·엇갈린 선택, 결정 궁합, 가장 크게 의견이 갈린 문항 제공
-- 최근 관심·반대 성향·인기·계절 키워드 기반 맞춤 추천
+- 초대 7일 만료, 취소·재발급, Web Share 공유, 참여 완료 알림 제공
+- 게임 시작·완료 이력과 관심 있음·관심 없음 피드백을 반영한 맞춤 추천
 - 연애·직장·친구·여행·소비·커플/우정의 6가지 회원 전용 테마
 - 회원 상세 결과를 1200×630 PNG 이미지로 브라우저에서 저장
+- 비밀번호 재설정, 계정 데이터 JSON 내보내기, 기록 삭제, 회원 탈퇴 제공
 - 모든 리포트와 궁합 결과에 실제 성격·심리 진단이 아닌 오락용 콘텐츠임을 명시
 
 ---
@@ -177,7 +178,7 @@ game/
 │   ├── views.py                 # 플레이·회원·제작·기록 뷰
 │   ├── urls.py                  # 서비스 URL 패턴
 │   ├── admin.py                 # 관리자 인터페이스
-│   ├── tests.py                 # 80개 자동 테스트
+│   ├── tests.py                 # 91개 자동 테스트
 │   └── management/
 │       └── commands/
 │           └── seed_data.py     # 샘플 데이터 생성 커맨드
@@ -198,9 +199,11 @@ game/
 │   │   └── set_result.html      # 주제 완료 유형·코믹·패턴 분석
 │   ├── registration/
 │   │   ├── login.html           # 로그인
-│   │   └── signup.html          # 회원가입
+│   │   ├── signup.html          # 회원가입
+│   │   └── password_reset_*.html # 비밀번호 재설정 흐름
 │   ├── members/
 │   │   ├── hub.html             # 회원 혜택·추천·전용 테마
+│   │   ├── account_settings.html # 계정·데이터 관리
 │   │   ├── choice_report.html   # 누적 선택 성향 리포트
 │   │   ├── together_landing.html # 함께하기 초대 링크
 │   │   ├── together_play.html   # 초대 참여자 플레이
@@ -232,11 +235,18 @@ game/
 | `/games/<id>/result/` | `ResultView` | 결과 페이지 |
 | `/my-results/` | `ProgressView` | 회원 즉석 결과 아카이브 |
 | `/members/` | `MemberHubView` | 회원 혜택·맞춤 추천·전용 테마 |
+| `/members/recommendations/feedback/` | `RecommendationFeedbackView` | 추천 관심·제외 피드백 |
 | `/my-report/` | `ChoiceReportView` | 누적 선택 성향 리포트 |
+| `/account/` | `AccountSettingsView` | 계정·데이터 관리 |
+| `/account/export/` | `AccountDataExportView` | 내 데이터 JSON 내려받기 |
+| `/account/clear-history/` | `AccountHistoryClearView` | 선택 기록과 추천 정보 삭제 |
+| `/account/delete/` | `AccountDeleteView` | 비밀번호 확인 후 회원 탈퇴 |
 | `/my-results/instant/<id>/favorite/` | `SavedInstantResultFavoriteView` | 결과 즐겨찾기 토글 |
 | `/my-results/instant/<id>/delete/` | `SavedInstantResultDeleteView` | 본인의 저장 결과 삭제 |
 | `/together/create/<result-id>/` | `TogetherInviteCreateView` | 완료 게임으로 초대 생성 |
 | `/together/<uuid>/` | `TogetherInviteDetailView` | 초대 또는 결정 궁합 결과 |
+| `/together/<uuid>/cancel/` | `TogetherInviteCancelView` | 대기 중 초대 취소 |
+| `/together/<uuid>/reissue/` | `TogetherInviteReissueView` | 만료·취소 초대 재발급 |
 | `/together/<uuid>/<번호>/` | `TogetherPlayView` | 초대 참여자 문항 플레이 |
 | `/together/<uuid>/<번호>/answer/` | `TogetherAnswerView` | 참여자 선택 저장·자동 진행 |
 | `/games/create/` | `GameSetCreateView` | 7~10문항 사용자 게임 제작 |
@@ -249,6 +259,7 @@ game/
 | `/accounts/signup/` | `SignupView` | 회원가입 |
 | `/accounts/login/` | `LoginView` | 로그인 |
 | `/accounts/logout/` | `LogoutView` | 로그아웃 (POST) |
+| `/accounts/password-reset/` | `PasswordResetView` | 이메일 비밀번호 재설정 |
 | `/categories/<slug>/` | `CategoryListView` | 카테고리별 목록 |
 | `/admin/` | Django Admin | 사용자 게임 검수·승인·반려 |
 
@@ -299,6 +310,9 @@ pip install -r requirements.txt
 cp .env.example .env
 # .env 파일에서 SECRET_KEY 수정 후 발급받은 OpenAI 키만 입력
 # OPENAI_API_KEY=sk-발급받은_키
+# 개발 중 비밀번호 재설정 메일은 터미널에 출력됨
+# 운영에서는 .env.example의 EMAIL_* 값을 SMTP 서비스에 맞게 설정
+# HTTPS 배포 전 SECURE_*와 보안 쿠키 설정을 운영 환경에 맞게 활성화
 
 # 3. DB 마이그레이션
 python manage.py migrate
@@ -323,7 +337,7 @@ python manage.py runserver
 python manage.py test 양자택일 --verbosity=2
 ```
 
-80개 자동 테스트는 다음 핵심 영역을 검증합니다.
+91개 자동 테스트는 다음 핵심 영역을 검증합니다.
 
 1. 투표 저장 테스트
 2. 중복투표 방지 테스트 (애플리케이션 레벨)
@@ -393,6 +407,17 @@ python manage.py test 양자택일 --verbosity=2
 66. 아카이브의 함께하기·리포트 진입 테스트
 67. 비회원 초대 링크의 로그인·회원가입 진입 테스트
 68. 두 회원의 7문항 공동 플레이·결정 궁합·외부 접근 차단 테스트
+69. 아카이브 10개 단위 페이지 구분 테스트
+70. 키워드·MBTI·즐겨찾기 복합 필터 테스트
+71. 3게임 미만 탐색 상태와 리포트 해제 기준 테스트
+72. 게임 시작·완료 추천 이벤트 중복 방지 테스트
+73. 추천 관심·제외·초기화와 소유권 보호 테스트
+74. 함께하기 초대 만료와 새 링크 재발급 테스트
+75. 초대 취소 소유권 보호 테스트
+76. 참여 완료 알림과 결과 확인 상태 테스트
+77. 비밀번호 재설정 이메일 발송 테스트
+78. 회원 데이터 내보내기와 다른 회원 데이터 격리 테스트
+79. 기록 전체 삭제·참여 데이터 제거·회원 탈퇴 확인 테스트
 
 ---
 

@@ -360,6 +360,7 @@ function initInstantAnswer() {
 function initInviteLinkCopy() {
   const input = document.getElementById('inviteLink');
   const button = document.getElementById('copyInviteButton');
+  const shareButton = document.getElementById('shareInviteButton');
   if (!input || !button) return;
 
   button.addEventListener('click', function () {
@@ -385,6 +386,24 @@ function initInviteLinkCopy() {
     document.execCommand('copy');
     done();
   });
+
+  if (shareButton) {
+    if (!navigator.share) {
+      shareButton.hidden = true;
+    } else {
+      shareButton.addEventListener('click', function () {
+        navigator.share({
+          title: shareButton.dataset.shareTitle || '양자택일 함께하기',
+          text: '같은 질문에 답하고 우리의 결정 궁합을 확인해보세요.',
+          url: shareButton.dataset.shareUrl || input.value
+        }).catch(function (error) {
+          if (error && error.name !== 'AbortError') {
+            alert('공유 창을 열지 못했습니다. 링크 복사를 이용해주세요.');
+          }
+        });
+      });
+    }
+  }
 }
 
 function drawWrappedText(context, text, x, y, maxWidth, lineHeight, maxLines) {

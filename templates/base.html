@@ -87,6 +87,11 @@
                   <i class="bi bi-compass me-2"></i>선택 성향 리포트
                 </a>
               </li>
+              <li>
+                <a class="dropdown-item" href="{% url 'games:account_settings' %}">
+                  <i class="bi bi-gear me-2"></i>계정·데이터 관리
+                </a>
+              </li>
               <li><hr class="dropdown-divider"></li>
               <li>
                 <form method="post" action="{% url 'games:logout' %}">

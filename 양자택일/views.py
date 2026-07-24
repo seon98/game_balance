@@ -5,14 +5,17 @@ import hashlib
 import re
 import uuid
 from collections import Counter
+from datetime import timedelta
 from typing import Any
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -27,11 +30,14 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import CreateView, ListView, TemplateView
 
 from .forms import (
+    AccountDeleteForm,
+    AccountHistoryClearForm,
     GameQuestionFormSet,
     GameSetForm,
     InstantGameSearchForm,
     NicknameForm,
     QuestionDraftGeneratorForm,
+    RecommendationFeedbackForm,
     SignupForm,
     VoteForm,
 )
@@ -40,7 +46,9 @@ from .models import (
     Choice,
     ChoiceComparisonInvite,
     GameSet,
+    MemberGameEvent,
     Question,
+    RecommendationFeedback,
     ResultGrade,
     SavedInstantResult,
     Vote,
@@ -109,6 +117,52 @@ def _safe_next_url(request: HttpRequest) -> str:
     ):
         return next_url
     return reverse('games:index')
+
+
+def _post_return_url(
+    request: HttpRequest,
+    *,
+    default: str = 'games:member_hub',
+) -> str:
+    if request.POST.get('next'):
+        return _safe_next_url(request)
+    return reverse(default)
+
+
+def _record_member_game_events(
+    *,
+    user,
+    game_token: str,
+    keywords: list[str],
+    event_type: str,
+    source: str = '',
+) -> None:
+    for keyword in keywords[:5]:
+        MemberGameEvent.objects.get_or_create(
+            user=user,
+            game_token=game_token,
+            keyword=str(keyword)[:30],
+            event_type=event_type,
+            defaults={'source': source[:32]},
+        )
+
+
+def _clear_member_activity(user) -> None:
+    now = timezone.now()
+    ChoiceComparisonInvite.objects.filter(
+        participant=user,
+    ).exclude(creator=user).update(
+        participant=None,
+        participant_answers=[],
+        participant_result={},
+        status=ChoiceComparisonInvite.Status.CANCELED,
+        completed_at=None,
+        canceled_at=now,
+        creator_seen_at=None,
+    )
+    SavedInstantResult.objects.filter(user=user).delete()
+    MemberGameEvent.objects.filter(user=user).delete()
+    RecommendationFeedback.objects.filter(user=user).delete()
 
 
 def _get_instant_game(request: HttpRequest) -> dict[str, Any] | None:
@@ -312,15 +366,36 @@ class InstantGameGenerateView(View):
             messages.error(request, '게임 문항을 완성하지 못했습니다. 다시 시도해주세요.')
             return redirect('games:index')
 
+        game_token = uuid.uuid4().hex
+        recommendation_source = request.POST.get('recommendation_source', 'direct')
+        if recommendation_source not in {
+            'direct',
+            'recent',
+            'opposite',
+            'popular',
+            'seasonal',
+            'theme',
+            'liked',
+        }:
+            recommendation_source = 'direct'
         request.session[_INSTANT_GAME_SESSION_KEY] = {
-            'token': uuid.uuid4().hex,
+            'token': game_token,
             'title': result.get('title_suggestion', '나만의 양자택일'),
             'description': result.get('description_suggestion', ''),
             'keywords': keywords,
             'questions': drafts,
             'answers': [None] * len(drafts),
             'source': result.get('source', 'local'),
+            'recommendation_source': recommendation_source,
         }
+        if request.user.is_authenticated:
+            _record_member_game_events(
+                user=request.user,
+                game_token=game_token,
+                keywords=keywords,
+                event_type=MemberGameEvent.EventType.STARTED,
+                source=recommendation_source,
+            )
         return redirect('games:instant_play', question_number=1)
 
 
@@ -511,6 +586,13 @@ class InstantGameResultView(TemplateView):
                         'answers': answers,
                     },
                 },
+            )
+            _record_member_game_events(
+                user=self.request.user,
+                game_token=game_token,
+                keywords=list(game.get('keywords', [])),
+                event_type=MemberGameEvent.EventType.COMPLETED,
+                source=str(game.get('recommendation_source', 'direct')),
             )
             result_saved = True
         context.update({
@@ -864,6 +946,79 @@ class ProgressView(TemplateView):
                 'grade_display': ResultGrade(grade).label,
             })
 
+        saved_instant_results = []
+        saved_result_count = 0
+        filtered_result_count = 0
+        has_saved_results = False
+        archive_filters = {
+            'q': '',
+            'mbti': '',
+            'period': 'all',
+            'favorite': False,
+        }
+        archive_mbti_choices: list[str] = []
+        filter_query = ''
+        if self.request.user.is_authenticated:
+            base_results = SavedInstantResult.objects.filter(
+                user=self.request.user,
+            )
+            saved_result_count = base_results.count()
+            has_saved_results = saved_result_count > 0
+            archive_mbti_choices = list(
+                base_results
+                .order_by('mbti')
+                .values_list('mbti', flat=True)
+                .distinct()
+            )
+
+            query = self.request.GET.get('q', '').strip()[:80]
+            mbti = self.request.GET.get('mbti', '').strip().upper()
+            if mbti not in archive_mbti_choices:
+                mbti = ''
+            period = self.request.GET.get('period', 'all')
+            if period not in {'all', '30', '90', '365'}:
+                period = 'all'
+            favorite = self.request.GET.get('favorite') == '1'
+            archive_filters = {
+                'q': query,
+                'mbti': mbti,
+                'period': period,
+                'favorite': favorite,
+            }
+
+            filtered_results = base_results.order_by('-updated_at')
+            if query:
+                filtered_results = filtered_results.filter(
+                    Q(topic__icontains=query)
+                    | Q(keyword_text__icontains=query)
+                    | Q(title__icontains=query)
+                    | Q(description__icontains=query)
+                )
+            if mbti:
+                filtered_results = filtered_results.filter(mbti=mbti)
+            if favorite:
+                filtered_results = filtered_results.filter(is_favorite=True)
+            if period != 'all':
+                filtered_results = filtered_results.filter(
+                    created_at__gte=timezone.now() - timedelta(days=int(period)),
+                )
+            filtered_result_count = filtered_results.count()
+            saved_instant_results = Paginator(
+                filtered_results,
+                10,
+            ).get_page(self.request.GET.get('page'))
+            query_params = {
+                key: value
+                for key, value in (
+                    ('q', query),
+                    ('mbti', mbti),
+                    ('period', period if period != 'all' else ''),
+                    ('favorite', '1' if favorite else ''),
+                )
+                if value
+            }
+            filter_query = urlencode(query_params)
+
         context.update({
             'categories': categories,
             'total_questions': total_questions,
@@ -873,15 +1028,13 @@ class ProgressView(TemplateView):
             'category_progress': category_progress,
             'recent_results': recent_results,
             'all_completed': total_questions > 0 and remaining_questions == 0,
-            'saved_instant_results': (
-                list(
-                    SavedInstantResult.objects
-                    .filter(user=self.request.user)
-                    .order_by('-updated_at')[:30]
-                )
-                if self.request.user.is_authenticated
-                else []
-            ),
+            'saved_instant_results': saved_instant_results,
+            'saved_result_count': saved_result_count,
+            'filtered_result_count': filtered_result_count,
+            'has_saved_results': has_saved_results,
+            'archive_filters': archive_filters,
+            'archive_mbti_choices': archive_mbti_choices,
+            'filter_query': filter_query,
         })
         return context
 
@@ -911,6 +1064,153 @@ class SignupView(CreateView):
         return response
 
 
+class AccountSettingsView(LoginRequiredMixin, TemplateView):
+    template_name = 'members/account_settings.html'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        context.update({
+            'categories': Category.objects.all(),
+            'history_clear_form': AccountHistoryClearForm(),
+            'account_delete_form': AccountDeleteForm(user=self.request.user),
+            'saved_result_count': (
+                SavedInstantResult.objects
+                .filter(user=self.request.user)
+                .count()
+            ),
+            'invite_count': (
+                ChoiceComparisonInvite.objects
+                .filter(
+                    Q(creator=self.request.user)
+                    | Q(participant=self.request.user)
+                )
+                .count()
+            ),
+            'recommendation_feedback': (
+                RecommendationFeedback.objects
+                .filter(user=self.request.user)
+                .order_by('-updated_at')
+            ),
+        })
+        return context
+
+
+class AccountDataExportView(LoginRequiredMixin, View):
+    def get(self, request: HttpRequest) -> HttpResponse:
+        results = list(
+            SavedInstantResult.objects
+            .filter(user=request.user)
+            .order_by('created_at')
+        )
+        invites = list(
+            ChoiceComparisonInvite.objects
+            .filter(Q(creator=request.user) | Q(participant=request.user))
+            .select_related('creator', 'participant', 'source_result')
+            .order_by('created_at')
+        )
+        payload = {
+            'exported_at': timezone.now().isoformat(),
+            'account': {
+                'username': request.user.username,
+                'email': request.user.email,
+                'date_joined': request.user.date_joined.isoformat(),
+            },
+            'saved_results': [
+                {
+                    'topic': result.topic,
+                    'keywords': result.keywords,
+                    'mbti': result.mbti,
+                    'title': result.title,
+                    'description': result.description,
+                    'result_data': result.result_data,
+                    'game_data': result.game_data,
+                    'is_favorite': result.is_favorite,
+                    'created_at': result.created_at.isoformat(),
+                    'updated_at': result.updated_at.isoformat(),
+                }
+                for result in results
+            ],
+            'together_invites': [
+                {
+                    'id': str(invite.pk),
+                    'topic': invite.source_result.topic,
+                    'creator': invite.creator.username,
+                    'participant': (
+                        invite.participant.username
+                        if invite.participant
+                        else None
+                    ),
+                    'status': invite.status,
+                    'created_at': invite.created_at.isoformat(),
+                    'completed_at': (
+                        invite.completed_at.isoformat()
+                        if invite.completed_at
+                        else None
+                    ),
+                }
+                for invite in invites
+            ],
+            'game_events': list(
+                MemberGameEvent.objects
+                .filter(user=request.user)
+                .values(
+                    'game_token',
+                    'keyword',
+                    'event_type',
+                    'source',
+                    'created_at',
+                )
+            ),
+            'recommendation_feedback': list(
+                RecommendationFeedback.objects
+                .filter(user=request.user)
+                .values('keyword', 'rating', 'updated_at')
+            ),
+        }
+        response = JsonResponse(
+            payload,
+            json_dumps_params={'ensure_ascii': False, 'indent': 2},
+        )
+        response['Content-Disposition'] = (
+            'attachment; filename="yangjataekil-my-data.json"'
+        )
+        return response
+
+
+class AccountHistoryClearView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest) -> HttpResponse:
+        form = AccountHistoryClearForm(request.POST)
+        if not form.is_valid():
+            messages.error(
+                request,
+                '선택 기록을 삭제하려면 확인 문구를 정확히 입력해주세요.',
+            )
+            return redirect('games:account_settings')
+        with transaction.atomic():
+            _clear_member_activity(request.user)
+        request.session.pop(_INSTANT_GAME_SESSION_KEY, None)
+        messages.success(request, '저장된 선택 기록과 추천 정보가 모두 삭제되었습니다.')
+        return redirect('games:account_settings')
+
+
+class AccountDeleteView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest) -> HttpResponse:
+        form = AccountDeleteForm(request.POST, user=request.user)
+        if not form.is_valid():
+            messages.error(
+                request,
+                '비밀번호와 확인 문구를 다시 확인해주세요.',
+            )
+            return redirect('games:account_settings')
+        user = request.user
+        with transaction.atomic():
+            _clear_member_activity(user)
+            logout(request)
+            user.delete()
+        messages.success(request, '회원 탈퇴가 완료되었습니다.')
+        return redirect('games:index')
+
+
 class SavedInstantResultDeleteView(LoginRequiredMixin, View):
     def post(self, request: HttpRequest, result_id: int) -> HttpResponse:
         saved_result = get_object_or_404(
@@ -920,7 +1220,7 @@ class SavedInstantResultDeleteView(LoginRequiredMixin, View):
         )
         saved_result.delete()
         messages.success(request, '선택 결과 기록을 삭제했습니다.')
-        return redirect('games:progress')
+        return redirect(_post_return_url(request, default='games:progress'))
 
 
 class SavedInstantResultFavoriteView(LoginRequiredMixin, View):
@@ -932,7 +1232,42 @@ class SavedInstantResultFavoriteView(LoginRequiredMixin, View):
         )
         saved_result.is_favorite = not saved_result.is_favorite
         saved_result.save(update_fields=['is_favorite', 'updated_at'])
-        return redirect('games:progress')
+        return redirect(_post_return_url(request, default='games:progress'))
+
+
+class RecommendationFeedbackView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest) -> HttpResponse:
+        form = RecommendationFeedbackForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, '추천 주제 선호도를 저장하지 못했습니다.')
+            return redirect(_post_return_url(request))
+        keyword = form.cleaned_data['keyword']
+        rating = form.cleaned_data['rating']
+        RecommendationFeedback.objects.update_or_create(
+            user=request.user,
+            keyword=keyword,
+            defaults={'rating': rating},
+        )
+        if rating == RecommendationFeedback.Rating.LIKE:
+            messages.success(request, f'‘{keyword}’를 관심 주제로 저장했습니다.')
+        else:
+            messages.success(request, f'‘{keyword}’는 앞으로 추천에서 제외합니다.')
+        return redirect(_post_return_url(request))
+
+
+class RecommendationFeedbackDeleteView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest, feedback_id: int) -> HttpResponse:
+        feedback = get_object_or_404(
+            RecommendationFeedback,
+            pk=feedback_id,
+            user=request.user,
+        )
+        keyword = feedback.keyword
+        feedback.delete()
+        messages.success(request, f'‘{keyword}’ 추천 설정을 초기화했습니다.')
+        return redirect(
+            _post_return_url(request, default='games:account_settings')
+        )
 
 
 class MemberHubView(LoginRequiredMixin, TemplateView):
@@ -949,12 +1284,29 @@ class MemberHubView(LoginRequiredMixin, TemplateView):
         for keywords in SavedInstantResult.objects.values_list('keywords', flat=True):
             if isinstance(keywords, list):
                 popular_counter.update(str(keyword) for keyword in keywords)
+        popular_counter.update(
+            MemberGameEvent.objects
+            .filter(event_type=MemberGameEvent.EventType.COMPLETED)
+            .values_list('keyword', flat=True)
+        )
+        member_events = list(
+            MemberGameEvent.objects
+            .filter(user=self.request.user)
+            .order_by('-created_at')[:100]
+        )
+        feedback = list(
+            RecommendationFeedback.objects
+            .filter(user=self.request.user)
+            .order_by('-updated_at')
+        )
         recommendations = build_member_recommendations(
             results,
             popular_keywords=[
                 keyword
                 for keyword, _count in popular_counter.most_common(8)
             ],
+            events=member_events,
+            feedback=feedback,
         )
         latest_shareable_result = next(
             (
@@ -965,17 +1317,38 @@ class MemberHubView(LoginRequiredMixin, TemplateView):
             ),
             None,
         )
+        recent_invites = list(
+            ChoiceComparisonInvite.objects
+            .filter(Q(creator=self.request.user) | Q(participant=self.request.user))
+            .select_related('creator', 'participant', 'source_result')
+            .order_by('-created_at')[:12]
+        )
+        for invite in recent_invites:
+            invite.expire_if_needed()
         context.update({
             'categories': Category.objects.all(),
             'saved_results': results,
-            'favorite_count': sum(result.is_favorite for result in results),
+            'saved_result_count': (
+                SavedInstantResult.objects
+                .filter(user=self.request.user)
+                .count()
+            ),
+            'favorite_count': (
+                SavedInstantResult.objects
+                .filter(user=self.request.user, is_favorite=True)
+                .count()
+            ),
             'latest_shareable_result': latest_shareable_result,
             'recommendations': recommendations,
-            'recent_invites': (
+            'recent_invites': recent_invites,
+            'unread_completed_invites': (
                 ChoiceComparisonInvite.objects
-                .filter(Q(creator=self.request.user) | Q(participant=self.request.user))
-                .select_related('creator', 'participant', 'source_result')
-                .order_by('-created_at')[:8]
+                .filter(
+                    creator=self.request.user,
+                    status=ChoiceComparisonInvite.Status.COMPLETED,
+                    creator_seen_at__isnull=True,
+                )
+                .count()
             ),
         })
         return context
@@ -1016,12 +1389,20 @@ class TogetherInviteCreateView(LoginRequiredMixin, View):
         ):
             messages.error(request, '이전 버전의 결과는 함께하기 초대를 만들 수 없습니다.')
             return redirect('games:progress')
+        now = timezone.now()
+        ChoiceComparisonInvite.objects.filter(
+            creator=request.user,
+            source_result=source_result,
+            status=ChoiceComparisonInvite.Status.OPEN,
+            expires_at__lte=now,
+        ).update(status=ChoiceComparisonInvite.Status.EXPIRED)
         invite = (
             ChoiceComparisonInvite.objects
             .filter(
                 creator=request.user,
                 source_result=source_result,
                 status=ChoiceComparisonInvite.Status.OPEN,
+                expires_at__gt=now,
             )
             .first()
         )
@@ -1031,6 +1412,43 @@ class TogetherInviteCreateView(LoginRequiredMixin, View):
                 source_result=source_result,
             )
         return redirect('games:together_detail', invite_id=invite.pk)
+
+
+class TogetherInviteCancelView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest, invite_id: uuid.UUID) -> HttpResponse:
+        invite = get_object_or_404(
+            ChoiceComparisonInvite,
+            pk=invite_id,
+            creator=request.user,
+            status=ChoiceComparisonInvite.Status.OPEN,
+        )
+        invite.status = ChoiceComparisonInvite.Status.CANCELED
+        invite.canceled_at = timezone.now()
+        invite.save(update_fields=['status', 'canceled_at'])
+        messages.success(request, '함께하기 초대를 취소했습니다.')
+        return redirect(_post_return_url(request))
+
+
+class TogetherInviteReissueView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest, invite_id: uuid.UUID) -> HttpResponse:
+        invite = get_object_or_404(
+            ChoiceComparisonInvite.objects.select_related('source_result'),
+            pk=invite_id,
+            creator=request.user,
+        )
+        if invite.status == ChoiceComparisonInvite.Status.COMPLETED:
+            messages.info(request, '완료된 초대는 그대로 보관됩니다. 아카이브에서 새 초대를 만들어주세요.')
+            return redirect('games:together_detail', invite_id=invite.pk)
+        if invite.status == ChoiceComparisonInvite.Status.OPEN:
+            invite.status = ChoiceComparisonInvite.Status.CANCELED
+            invite.canceled_at = timezone.now()
+            invite.save(update_fields=['status', 'canceled_at'])
+        new_invite = ChoiceComparisonInvite.objects.create(
+            creator=request.user,
+            source_result=invite.source_result,
+        )
+        messages.success(request, '7일 동안 사용할 수 있는 새 초대 링크를 만들었습니다.')
+        return redirect('games:together_detail', invite_id=new_invite.pk)
 
 
 class TogetherInviteDetailView(View):
@@ -1046,6 +1464,7 @@ class TogetherInviteDetailView(View):
             ),
             pk=invite_id,
         )
+        invite.expire_if_needed()
         if invite.status == ChoiceComparisonInvite.Status.COMPLETED:
             if not request.user.is_authenticated:
                 return redirect(
@@ -1065,9 +1484,29 @@ class TogetherInviteDetailView(View):
                 creator_result=invite.source_result.result_data,
                 participant_result=invite.participant_result,
             )
+            if (
+                request.user.pk == invite.creator_id
+                and invite.creator_seen_at is None
+            ):
+                invite.creator_seen_at = timezone.now()
+                invite.save(update_fields=['creator_seen_at'])
             return render(request, self.result_template_name, {
                 'invite': invite,
                 'comparison': comparison,
+                'categories': Category.objects.all(),
+            })
+
+        if invite.status in {
+            ChoiceComparisonInvite.Status.CANCELED,
+            ChoiceComparisonInvite.Status.EXPIRED,
+        }:
+            return render(request, self.template_name, {
+                'invite': invite,
+                'closed_invite': True,
+                'is_creator': (
+                    request.user.is_authenticated
+                    and request.user.pk == invite.creator_id
+                ),
                 'categories': Category.objects.all(),
             })
 
@@ -1110,6 +1549,7 @@ class TogetherPlayView(LoginRequiredMixin, TemplateView):
                 ),
                 pk=self.kwargs['invite_id'],
                 status=ChoiceComparisonInvite.Status.OPEN,
+                expires_at__gt=timezone.now(),
             )
             if self.request.user.pk == invite.creator_id:
                 raise PermissionError
@@ -1187,6 +1627,7 @@ class TogetherAnswerView(LoginRequiredMixin, View):
             pk=invite_id,
             participant=request.user,
             status=ChoiceComparisonInvite.Status.OPEN,
+            expires_at__gt=timezone.now(),
         )
         questions = invite.source_result.game_data.get('questions', [])
         if not isinstance(questions, list) or question_number not in range(1, len(questions) + 1):
@@ -1258,6 +1699,13 @@ class TogetherAnswerView(LoginRequiredMixin, View):
                     'answers': answers,
                 },
             },
+        )
+        _record_member_game_events(
+            user=request.user,
+            game_token=invite.pk.hex,
+            keywords=list(invite.source_result.keywords),
+            event_type=MemberGameEvent.EventType.COMPLETED,
+            source='together',
         )
         return redirect('games:together_detail', invite_id=invite.pk)
 

@@ -29,7 +29,7 @@
           </article>
           <article class="representative">
             <span>이번 달 대표 캐릭터</span>
-            <strong>{{ report.representative_mbti|default:"아직 없음" }}</strong>
+            <strong>{{ report.representative_mbti|default:"탐색 중" }}</strong>
           </article>
         </div>
       </div>
@@ -42,9 +42,46 @@
     <div class="row justify-content-center">
       <div class="col-xl-10">
         {% if report.total_results %}
+        <div class="report-confidence-card mb-4 {% if report.is_ready %}is-ready{% endif %}">
+          <div>
+            <span class="report-confidence-icon">
+              <i class="bi {% if report.is_ready %}bi-check2-circle{% else %}bi-hourglass-split{% endif %}"></i>
+            </span>
+            <div>
+              <p class="eyebrow mb-1">REPORT CONFIDENCE</p>
+              <h2 class="h5 fw-black mb-1">{{ report.confidence_label }}</h2>
+              {% if report.is_ready %}
+              <p class="small text-muted mb-0">
+                {{ report.total_results }}개의 게임을 바탕으로 누적 방향을 보여드립니다.
+              </p>
+              {% else %}
+              <p class="small text-muted mb-0">
+                게임을 {{ report.remaining_to_ready }}개 더 완료하면 대표 캐릭터와 누적 방향이 열립니다.
+                현재 예상 캐릭터는 {{ report.emerging_mbti|default:"계산 중" }}입니다.
+              </p>
+              {% endif %}
+            </div>
+          </div>
+          <div class="report-confidence-progress">
+            <div class="d-flex justify-content-between small mb-2">
+              <strong>{{ report.total_results }}개 누적</strong>
+              <span>{{ report.confidence_percentage }}%</span>
+            </div>
+            <div class="progress">
+              <div class="progress-bar" style="width:{{ report.confidence_percentage }}%"></div>
+            </div>
+          </div>
+        </div>
+
         <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
           <h2 class="h4 fw-black mb-0">E/I · S/N · T/F · J/P 누적 나침반</h2>
-          <span class="small text-muted">지난달 {{ report.previous_month_count }}개 기록과 비교</span>
+          <span class="small text-muted">
+            {% if report.can_compare_months %}
+            지난달 {{ report.previous_month_count }}개 기록과 비교
+            {% else %}
+            월간 비교는 두 달 모두 {{ report.minimum_monthly_results }}개 이상 필요
+            {% endif %}
+          </span>
         </div>
         <div class="report-axis-grid">
           {% for axis in report.axis_reports %}
@@ -61,8 +98,13 @@
               <span style="width:{{ axis.second_percentage }}%"></span>
             </div>
             <div class="d-flex justify-content-between mt-2">
+              {% if report.is_ready %}
               <strong>{{ axis.first }} {{ axis.first_percentage }}%</strong>
               <strong>{{ axis.second }} {{ axis.second_percentage }}%</strong>
+              {% else %}
+              <span class="small text-muted">현재까지 {{ axis.first }} {{ axis.first_count }}회</span>
+              <span class="small text-muted">{{ axis.second }} {{ axis.second_count }}회</span>
+              {% endif %}
             </div>
           </article>
           {% endfor %}

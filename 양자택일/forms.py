@@ -7,7 +7,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.forms import BaseFormSet, formset_factory
 
-from .models import Category, Choice, GameSet, Question
+from .models import (
+    Category,
+    Choice,
+    GameSet,
+    Question,
+    RecommendationFeedback,
+)
 from .moderation import requires_reference, validate_safe_text
 
 
@@ -81,6 +87,70 @@ class StyledAuthenticationForm(AuthenticationForm):
         self.fields['password'].label = '비밀번호'
         for field in self.fields.values():
             field.widget.attrs['class'] = 'form-control'
+
+
+class AccountHistoryClearForm(forms.Form):
+    confirmation = forms.CharField(
+        label='확인 문구',
+        max_length=10,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '기록삭제',
+            'autocomplete': 'off',
+        }),
+    )
+
+    def clean_confirmation(self) -> str:
+        confirmation = self.cleaned_data['confirmation'].strip()
+        if confirmation != '기록삭제':
+            raise forms.ValidationError('확인 문구에 ‘기록삭제’를 입력해주세요.')
+        return confirmation
+
+
+class AccountDeleteForm(forms.Form):
+    password = forms.CharField(
+        label='현재 비밀번호',
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'autocomplete': 'current-password',
+        }),
+    )
+    confirmation = forms.CharField(
+        label='확인 문구',
+        max_length=10,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '회원탈퇴',
+            'autocomplete': 'off',
+        }),
+    )
+
+    def __init__(self, *args: object, user=None, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)
+        self.user = user
+
+    def clean_password(self) -> str:
+        password = self.cleaned_data['password']
+        if self.user is None or not self.user.check_password(password):
+            raise forms.ValidationError('현재 비밀번호가 일치하지 않습니다.')
+        return password
+
+    def clean_confirmation(self) -> str:
+        confirmation = self.cleaned_data['confirmation'].strip()
+        if confirmation != '회원탈퇴':
+            raise forms.ValidationError('확인 문구에 ‘회원탈퇴’를 입력해주세요.')
+        return confirmation
+
+
+class RecommendationFeedbackForm(forms.Form):
+    keyword = forms.CharField(max_length=30)
+    rating = forms.ChoiceField(choices=RecommendationFeedback.Rating.choices)
+
+    def clean_keyword(self) -> str:
+        keywords = clean_generation_keywords(self.cleaned_data['keyword'])
+        if len(keywords) != 1:
+            raise forms.ValidationError('한 번에 하나의 추천 주제만 평가해주세요.')
+        return keywords[0]
 
 
 class NicknameForm(forms.Form):

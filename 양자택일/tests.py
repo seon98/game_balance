@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -18,10 +19,12 @@ from .models import (
     Choice,
     ChoiceComparisonInvite,
     GameSet,
+    MemberGameEvent,
     Question,
     ResultGrade,
     ResultTemplate,
     SavedInstantResult,
+    RecommendationFeedback,
     Vote,
 )
 from .openai_question_generator import (
@@ -1999,3 +2002,326 @@ class TogetherChoiceFlowTest(TestCase):
 
         self.client.force_login(self.outsider)
         self.assertEqual(self.client.get(detail_url).status_code, 404)
+
+    def test_expired_invite_closes_and_creator_can_reissue(self) -> None:
+        invite = self.create_invite()
+        ChoiceComparisonInvite.objects.filter(pk=invite.pk).update(
+            expires_at=timezone.now() - timedelta(minutes=1),
+        )
+
+        closed_page = self.client.get(
+            reverse('games:together_detail', kwargs={'invite_id': invite.pk})
+        )
+
+        self.assertContains(closed_page, '초대 기간이 만료되었어요')
+        invite.refresh_from_db()
+        self.assertEqual(invite.status, ChoiceComparisonInvite.Status.EXPIRED)
+
+        reissue_response = self.client.post(
+            reverse('games:together_reissue', kwargs={'invite_id': invite.pk})
+        )
+        new_invite = (
+            ChoiceComparisonInvite.objects
+            .filter(creator=self.creator)
+            .exclude(pk=invite.pk)
+            .get()
+        )
+        self.assertRedirects(
+            reissue_response,
+            reverse(
+                'games:together_detail',
+                kwargs={'invite_id': new_invite.pk},
+            ),
+            fetch_redirect_response=False,
+        )
+        self.assertGreater(new_invite.expires_at, timezone.now())
+
+    def test_creator_can_cancel_open_invite_but_outsider_cannot(self) -> None:
+        invite = self.create_invite()
+        cancel_url = reverse(
+            'games:together_cancel',
+            kwargs={'invite_id': invite.pk},
+        )
+        self.client.force_login(self.outsider)
+        self.assertEqual(self.client.post(cancel_url).status_code, 404)
+
+        self.client.force_login(self.creator)
+        self.client.post(cancel_url)
+        invite.refresh_from_db()
+        self.assertEqual(invite.status, ChoiceComparisonInvite.Status.CANCELED)
+        self.assertIsNotNone(invite.canceled_at)
+
+    def test_completed_invite_notifies_creator_until_result_is_opened(self) -> None:
+        invite = self.create_invite()
+        invite.participant = self.participant
+        invite.participant_answers = ['B'] * 7
+        invite.participant_result = {'mbti': 'ISTP'}
+        invite.status = ChoiceComparisonInvite.Status.COMPLETED
+        invite.completed_at = timezone.now()
+        invite.save()
+
+        hub_page = self.client.get(reverse('games:member_hub'))
+        self.assertContains(hub_page, '친구의 선택이 도착한 함께하기 결과가 1개')
+
+        self.client.get(
+            reverse('games:together_detail', kwargs={'invite_id': invite.pk})
+        )
+        invite.refresh_from_db()
+        self.assertIsNotNone(invite.creator_seen_at)
+
+        refreshed_hub = self.client.get(reverse('games:member_hub'))
+        self.assertNotContains(
+            refreshed_hub,
+            '친구의 선택이 도착한 함께하기 결과가 1개',
+        )
+
+
+@override_settings(OPENAI_API_KEY='')
+class ArchiveReportAndRecommendationTest(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username='archive-member',
+            email='archive@example.com',
+            password='A-strong-password-2026',
+        )
+        self.client.force_login(self.user)
+
+    def test_archive_paginates_and_filters_search_mbti_and_favorites(self) -> None:
+        for index in range(12):
+            result = make_saved_member_result(
+                self.user,
+                token=f'{index:032x}',
+                topic=(
+                    '특별한 섬 선택'
+                    if index == 11
+                    else f'일상 선택 {index}'
+                ),
+                mbti='INFP' if index == 11 else 'ENTJ',
+            )
+            if index == 11:
+                result.keywords = ['제주']
+                result.is_favorite = True
+                result.save(update_fields=['keywords', 'is_favorite'])
+
+        first_page = self.client.get(reverse('games:progress'))
+        self.assertEqual(len(first_page.context['saved_instant_results']), 10)
+        self.assertEqual(
+            first_page.context['saved_instant_results'].paginator.num_pages,
+            2,
+        )
+
+        second_page = self.client.get(reverse('games:progress'), {'page': 2})
+        self.assertEqual(len(second_page.context['saved_instant_results']), 2)
+
+        filtered = self.client.get(reverse('games:progress'), {
+            'q': '제주',
+            'mbti': 'INFP',
+            'favorite': '1',
+        })
+        self.assertEqual(filtered.context['filtered_result_count'], 1)
+        self.assertContains(filtered, '특별한 섬 선택')
+        self.assertNotContains(filtered, '일상 선택 1')
+
+    def test_report_stays_exploratory_until_three_games(self) -> None:
+        make_saved_member_result(self.user, token='a' * 32)
+        make_saved_member_result(self.user, token='b' * 32)
+
+        exploring = self.client.get(reverse('games:choice_report'))
+
+        self.assertFalse(exploring.context['report']['is_ready'])
+        self.assertEqual(exploring.context['report']['remaining_to_ready'], 1)
+        self.assertIsNone(exploring.context['report']['representative_mbti'])
+        self.assertContains(exploring, '탐색 중')
+
+        make_saved_member_result(self.user, token='c' * 32)
+        ready = self.client.get(reverse('games:choice_report'))
+        self.assertTrue(ready.context['report']['is_ready'])
+        self.assertEqual(ready.context['report']['confidence_label'], '초기 방향')
+        self.assertIsNotNone(ready.context['report']['representative_mbti'])
+
+    def test_member_game_events_are_recorded_once_per_game_stage(self) -> None:
+        generated = self.client.post(
+            reverse('games:instant_generate'),
+            {
+                'keywords': '여름휴가',
+                'recommendation_source': 'seasonal',
+            },
+        )
+        self.assertEqual(generated.status_code, 302)
+        game_token = self.client.session['instant_game']['token']
+        started = MemberGameEvent.objects.get(
+            user=self.user,
+            game_token=game_token,
+            event_type=MemberGameEvent.EventType.STARTED,
+        )
+        self.assertEqual(started.source, 'seasonal')
+
+        for question_number in range(1, 8):
+            self.client.post(
+                reverse(
+                    'games:instant_answer',
+                    kwargs={'question_number': question_number},
+                ),
+                {'choice': 'A'},
+            )
+        self.client.get(reverse('games:instant_result'))
+        self.client.get(reverse('games:instant_result'))
+
+        self.assertEqual(
+            MemberGameEvent.objects.filter(
+                user=self.user,
+                game_token=game_token,
+                event_type=MemberGameEvent.EventType.COMPLETED,
+            ).count(),
+            1,
+        )
+
+    def test_feedback_hides_topics_and_saves_liked_topics(self) -> None:
+        make_saved_member_result(self.user, topic='여행 선택')
+        feedback_url = reverse('games:recommendation_feedback')
+
+        self.client.post(feedback_url, {
+            'keyword': '여행',
+            'rating': RecommendationFeedback.Rating.HIDE,
+        })
+        hidden_hub = self.client.get(reverse('games:member_hub'))
+        recent_keywords = [
+            keyword
+            for keyword, _score
+            in hidden_hub.context['recommendations']['recent_interests']
+        ]
+        self.assertNotIn('여행', recent_keywords)
+
+        self.client.post(feedback_url, {
+            'keyword': '봄 나들이',
+            'rating': RecommendationFeedback.Rating.LIKE,
+        })
+        liked_hub = self.client.get(reverse('games:member_hub'))
+        self.assertIn(
+            '봄 나들이',
+            liked_hub.context['recommendations']['liked_topics'],
+        )
+        liked_feedback = RecommendationFeedback.objects.get(
+            user=self.user,
+            keyword='봄 나들이',
+        )
+        reset_url = reverse(
+            'games:recommendation_feedback_delete',
+            kwargs={'feedback_id': liked_feedback.pk},
+        )
+        other = get_user_model().objects.create_user(
+            username='feedback-other',
+            password='A-strong-password-2026',
+        )
+        self.client.force_login(other)
+        self.assertEqual(self.client.post(reset_url).status_code, 404)
+        self.client.force_login(self.user)
+        self.client.post(reset_url)
+        self.assertFalse(
+            RecommendationFeedback.objects.filter(pk=liked_feedback.pk).exists()
+        )
+
+
+@override_settings(
+    EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
+)
+class AccountManagementTest(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username='account-member',
+            email='account@example.com',
+            password='A-strong-password-2026',
+        )
+        self.other = get_user_model().objects.create_user(
+            username='other-account',
+            email='other@example.com',
+            password='A-strong-password-2026',
+        )
+        self.result = make_saved_member_result(self.user)
+        self.other_result = make_saved_member_result(
+            self.other,
+            token='b' * 32,
+        )
+        self.client.force_login(self.user)
+
+    def test_password_reset_sends_email_without_revealing_account_state(self) -> None:
+        self.client.logout()
+        response = self.client.post(
+            reverse('games:password_reset'),
+            {'email': self.user.email},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('games:password_reset_done'),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn('비밀번호 재설정', mail.outbox[0].subject)
+        self.assertIn('/accounts/reset/', mail.outbox[0].body)
+
+    def test_export_contains_only_signed_in_members_data(self) -> None:
+        response = self.client.get(reverse('games:account_export'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('attachment;', response['Content-Disposition'])
+        payload = response.json()
+        self.assertEqual(payload['account']['username'], self.user.username)
+        self.assertEqual(len(payload['saved_results']), 1)
+        self.assertEqual(
+            payload['saved_results'][0]['topic'],
+            self.result.topic,
+        )
+        self.assertNotIn(self.other.username, response.content.decode())
+
+    def test_clear_history_requires_phrase_and_scrubs_joined_invite(self) -> None:
+        joined_invite = ChoiceComparisonInvite.objects.create(
+            creator=self.other,
+            source_result=self.other_result,
+            participant=self.user,
+            participant_answers=['A'] * 7,
+            participant_result={'mbti': 'ENTJ'},
+            status=ChoiceComparisonInvite.Status.COMPLETED,
+            completed_at=timezone.now(),
+        )
+        clear_url = reverse('games:account_clear_history')
+
+        self.client.post(clear_url, {'confirmation': '잘못입력'})
+        self.assertTrue(
+            SavedInstantResult.objects.filter(user=self.user).exists()
+        )
+
+        self.client.post(clear_url, {'confirmation': '기록삭제'})
+        self.assertFalse(
+            SavedInstantResult.objects.filter(user=self.user).exists()
+        )
+        self.assertTrue(
+            SavedInstantResult.objects.filter(user=self.other).exists()
+        )
+        joined_invite.refresh_from_db()
+        self.assertIsNone(joined_invite.participant)
+        self.assertEqual(joined_invite.participant_answers, [])
+        self.assertEqual(joined_invite.status, ChoiceComparisonInvite.Status.CANCELED)
+
+    def test_account_deletion_requires_current_password(self) -> None:
+        delete_url = reverse('games:account_delete')
+        self.client.post(delete_url, {
+            'password': 'wrong-password',
+            'confirmation': '회원탈퇴',
+        })
+        self.assertTrue(
+            get_user_model().objects.filter(pk=self.user.pk).exists()
+        )
+
+        response = self.client.post(delete_url, {
+            'password': 'A-strong-password-2026',
+            'confirmation': '회원탈퇴',
+        })
+        self.assertRedirects(
+            response,
+            reverse('games:index'),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(
+            get_user_model().objects.filter(pk=self.user.pk).exists()
+        )

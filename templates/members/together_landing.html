@@ -9,7 +9,26 @@
       <div class="col-lg-8">
         <div class="together-landing-card text-center">
           <span class="together-big-icon"><i class="bi bi-hearts"></i></span>
+          {% if closed_invite %}
+          <p class="eyebrow mt-3 mb-2">INVITATION CLOSED</p>
+          <h1 class="display-6 fw-black">
+            {% if invite.status == 'EXPIRED' %}초대 기간이 만료되었어요{% else %}취소된 초대입니다{% endif %}
+          </h1>
+          <p class="text-muted mb-4">
+            이 링크로는 더 이상 참여할 수 없습니다.
+            {% if is_creator %}새 링크를 발급하면 다시 초대할 수 있어요.{% endif %}
+          </p>
           {% if is_creator %}
+          <form method="post" action="{% url 'games:together_reissue' invite.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary btn-lg fw-bold px-5">
+              <i class="bi bi-arrow-repeat me-1"></i>새 초대 링크 발급
+            </button>
+          </form>
+          {% else %}
+          <a href="{% url 'games:index' %}#quick-play" class="btn btn-outline-primary fw-bold px-4">내 게임 시작하기</a>
+          {% endif %}
+          {% elif is_creator %}
           <p class="eyebrow mt-3 mb-2">INVITATION READY</p>
           <h1 class="display-6 fw-black">함께할 사람에게 링크를 보내세요</h1>
           <p class="text-muted mb-4">
@@ -20,8 +39,23 @@
             <button id="copyInviteButton" type="button" class="btn btn-primary fw-bold">
               <i class="bi bi-clipboard me-1"></i>링크 복사
             </button>
+            <button
+              id="shareInviteButton"
+              type="button"
+              class="btn btn-outline-primary fw-bold"
+              data-share-title="양자택일 함께하기"
+              data-share-url="{{ invite_url }}"
+            >
+              <i class="bi bi-share me-1"></i>공유
+            </button>
           </div>
-          <p class="small text-muted mt-3 mb-0">초대 링크는 참여자 한 명만 사용할 수 있습니다.</p>
+          <p class="small text-muted mt-3 mb-3">
+            초대 링크는 참여자 한 명만 사용할 수 있으며 {{ invite.expires_at|date:"Y.m.d H:i" }}에 만료됩니다.
+          </p>
+          <form method="post" action="{% url 'games:together_cancel' invite.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">이 초대 취소</button>
+          </form>
           {% else %}
           <p class="eyebrow mt-3 mb-2">CHOICE TOGETHER</p>
           <h1 class="display-6 fw-black">{{ invite.creator.username }}님이 함께 선택하자고 했어요</h1>
