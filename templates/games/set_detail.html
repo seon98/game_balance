@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ game_set.title }} - 밸런스게임{% endblock %}
+
+{% block content %}
+<section class="set-hero py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-9">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <span class="badge bg-primary">{{ game_set.category.name }}</span>
+          <span class="badge bg-success"><i class="bi bi-patch-check-fill me-1"></i>검수 완료</span>
+        </div>
+        <h1 class="display-6 fw-black mb-3">{{ game_set.title }}</h1>
+        <p class="lead text-muted mb-4">{{ game_set.description|default:'두 가지 선택 사이에서 나의 취향을 확인해보세요.' }}</p>
+        <div class="d-flex flex-wrap align-items-center gap-3 small text-muted">
+          <span><i class="bi bi-person-circle me-1"></i>{{ game_set.creator.username }} 제작</span>
+          <span><i class="bi bi-ui-checks-grid me-1"></i>{{ questions|length }}문항</span>
+          <span><i class="bi bi-calendar3 me-1"></i>{{ game_set.created_at|date:'Y.m.d' }}</span>
+          {% if game_set.content_basis == 'SOURCED' and game_set.reference_url %}
+          <a href="{{ game_set.reference_url }}" target="_blank" rel="noopener noreferrer nofollow" class="text-decoration-none">
+            <i class="bi bi-box-arrow-up-right me-1"></i>검증 자료
+          </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="pb-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-9">
+        <div class="card border-0 shadow-sm rounded-4 mb-4">
+          <div class="card-body p-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+              <div class="flex-grow-1">
+                <div class="d-flex justify-content-between small mb-2">
+                  <strong>이 주제 진행률</strong>
+                  <span class="text-muted">{{ completed_count }} / {{ questions|length }}</span>
+                </div>
+                <div class="progress progress-thick" role="progressbar" aria-label="주제 진행률"
+                     aria-valuenow="{{ completion_percentage }}" aria-valuemin="0" aria-valuemax="100">
+                  <div class="progress-bar bg-warning" style="width:{{ completion_percentage }}%"></div>
+                </div>
+              </div>
+              {% if next_question %}
+              <a href="{% url 'games:detail' next_question.id %}" class="btn btn-warning fw-bold px-4 flex-shrink-0">
+                <i class="bi bi-play-fill me-1"></i>{% if completed_count %}이어서 하기{% else %}시작하기{% endif %}
+              </a>
+              {% else %}
+              <span class="badge bg-success-subtle text-success fs-6 px-3 py-2">
+                <i class="bi bi-trophy-fill me-1"></i>모두 완료
+              </span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="set-question-list">
+          {% for question in questions %}
+          <a href="{% url 'games:detail' question.id %}" class="set-question-item card border-0 shadow-sm rounded-4 mb-3 text-decoration-none">
+            <div class="card-body p-4">
+              <div class="d-flex align-items-start gap-3">
+                <span class="set-question-number">{{ forloop.counter }}</span>
+                <div class="flex-grow-1 min-w-0">
+                  <div class="d-flex justify-content-between gap-3 mb-2">
+                    <h2 class="h6 fw-bold text-dark mb-0">{{ question.title }}</h2>
+                    {% if question.id in completed_question_ids %}
+                    <span class="badge bg-success-subtle text-success flex-shrink-0"><i class="bi bi-check-circle me-1"></i>완료</span>
+                    {% endif %}
+                  </div>
+                  <div class="d-flex align-items-center gap-2 small">
+                    {% for choice in question.choices.all %}
+                    <span class="{% if choice.code == 'A' %}text-danger{% else %}text-primary{% endif %}">
+                      <strong>{{ choice.code }}</strong> {{ choice.text|truncatechars:28 }}
+                    </span>
+                    {% if forloop.first %}<span class="text-muted">vs</span>{% endif %}
+                    {% endfor %}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </a>
+          {% empty %}
+          <div class="alert alert-info">공개된 질문이 없습니다.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

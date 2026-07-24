@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}내가 만든 게임 - 밸런스게임{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-end gap-3 mb-4">
+    <div>
+      <span class="eyebrow">MY CREATIONS</span>
+      <h1 class="h2 fw-black mt-2 mb-2">내가 만든 게임</h1>
+      <p class="text-muted mb-0">제출한 주제의 검수 상태와 문항 수를 확인할 수 있습니다.</p>
+    </div>
+    <a href="{% url 'games:create' %}" class="btn btn-warning fw-bold px-4">
+      <i class="bi bi-plus-circle me-2"></i>새 게임 만들기
+    </a>
+  </div>
+
+  {% if game_sets %}
+  <div class="row g-4">
+    {% for game_set in game_sets %}
+    <div class="col-md-6 col-xl-4">
+      <div class="card creation-card border-0 shadow-sm rounded-4 h-100">
+        <div class="card-body p-4">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+            <span class="badge bg-primary bg-opacity-10 text-primary">{{ game_set.category.name }}</span>
+            {% if game_set.status == 'APPROVED' %}
+            <span class="badge bg-success-subtle text-success"><i class="bi bi-check-circle me-1"></i>승인</span>
+            {% elif game_set.status == 'REJECTED' %}
+            <span class="badge bg-danger-subtle text-danger"><i class="bi bi-x-circle me-1"></i>반려</span>
+            {% else %}
+            <span class="badge bg-warning-subtle text-warning-emphasis"><i class="bi bi-hourglass-split me-1"></i>검수 대기</span>
+            {% endif %}
+          </div>
+          <h2 class="h5 fw-bold mb-2">{{ game_set.title }}</h2>
+          <p class="small text-muted creation-description mb-4">{{ game_set.description|default:'주제 설명이 없습니다.'|truncatechars:90 }}</p>
+          <div class="d-flex justify-content-between small text-muted border-top pt-3">
+            <span><i class="bi bi-ui-checks-grid me-1"></i>{{ game_set.questions.count }}문항</span>
+            <span>{{ game_set.created_at|date:'Y.m.d' }}</span>
+          </div>
+          {% if game_set.status == 'REJECTED' and game_set.moderation_note %}
+          <div class="alert alert-danger small mt-3 mb-0">
+            <strong>반려 사유</strong><br>{{ game_set.moderation_note }}
+          </div>
+          {% elif game_set.status == 'APPROVED' %}
+          <div class="d-flex justify-content-between align-items-center mt-3">
+            <p class="small text-success mb-0"><i class="bi bi-broadcast me-1"></i>공개되었습니다.</p>
+            <a href="{% url 'games:game_set_detail' game_set.id %}" class="btn btn-sm btn-outline-success">공개 페이지</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="card border-0 shadow-sm rounded-4">
+    <div class="card-body text-center py-5">
+      <div class="empty-state-icon mx-auto mb-3"><i class="bi bi-pencil-square"></i></div>
+      <h2 class="h5 fw-bold">아직 만든 게임이 없어요</h2>
+      <p class="text-muted mb-4">7~10개의 질문으로 첫 번째 주제를 완성해보세요.</p>
+      <a href="{% url 'games:create' %}" class="btn btn-primary fw-bold">게임 만들기</a>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

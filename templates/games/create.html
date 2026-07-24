@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block title %}밸런스게임 만들기{% endblock %}
+
+{% block content %}
+<section class="creator-hero py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-xl-9">
+        <span class="eyebrow">CREATE YOUR GAME</span>
+        <h1 class="display-6 fw-black mt-2 mb-3">나만의 밸런스게임 만들기</h1>
+        <p class="text-muted mb-0">하나의 주제에 7~10개 질문을 구성해주세요. 제출된 콘텐츠는 안전성과 근거 검수 후 공개됩니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="pb-5">
+  <div class="container">
+    <form method="post" id="gameSetForm" novalidate>
+      {% csrf_token %}
+      <div class="row justify-content-center g-4">
+        <div class="col-xl-9">
+          {% if form.non_field_errors or question_formset.non_form_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+            {{ question_formset.non_form_errors }}
+          </div>
+          {% endif %}
+
+          <div class="policy-card card border-0 rounded-4 mb-4">
+            <div class="card-body p-4">
+              <div class="d-flex gap-3">
+                <div class="policy-icon"><i class="bi bi-shield-check"></i></div>
+                <div>
+                  <h2 class="h5 fw-bold mb-2">안전한 콘텐츠만 공개됩니다</h2>
+                  <ul class="small text-muted mb-0 ps-3">
+                    <li>성인·음란, 혐오·차별, 자해·불법 행동을 조장하는 내용은 제출할 수 없습니다.</li>
+                    <li>사실·통계·의학·금융 주장은 신뢰할 수 있는 근거 URL을 입력해야 합니다.</li>
+                    <li>자동 필터를 통과해도 관리자 검수 전에는 사이트에 노출되지 않습니다.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4 p-md-5">
+              <div class="section-number mb-3">1</div>
+              <h2 class="h4 fw-bold mb-4">주제 정보</h2>
+
+              <div class="row g-3">
+                <div class="col-md-8">
+                  <label for="{{ form.title.id_for_label }}" class="form-label fw-bold">{{ form.title.label }}</label>
+                  {{ form.title }}
+                  {% for error in form.title.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-4">
+                  <label for="{{ form.category.id_for_label }}" class="form-label fw-bold">{{ form.category.label }}</label>
+                  {{ form.category }}
+                  {% for error in form.category.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-12">
+                  <label for="{{ form.description.id_for_label }}" class="form-label fw-bold">{{ form.description.label }}</label>
+                  {{ form.description }}
+                  {% for error in form.description.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-5">
+                  <label for="{{ form.content_basis.id_for_label }}" class="form-label fw-bold">{{ form.content_basis.label }}</label>
+                  {{ form.content_basis }}
+                  <div class="form-text">가상의 취향 질문인지, 검증 가능한 사실을 다루는지 선택해주세요.</div>
+                  {% for error in form.content_basis.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="col-md-7" id="referenceUrlGroup">
+                  <label for="{{ form.reference_url.id_for_label }}" class="form-label fw-bold">{{ form.reference_url.label }}</label>
+                  {{ form.reference_url }}
+                  <div class="form-text">언론사, 공공기관, 학술자료 등 확인 가능한 출처를 권장합니다.</div>
+                  {% for error in form.reference_url.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body p-4 p-md-5">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+                <div>
+                  <div class="section-number mb-3">2</div>
+                  <h2 class="h4 fw-bold mb-1">질문 구성</h2>
+                  <p class="text-muted small mb-0">최소 7개, 최대 10개까지 등록할 수 있습니다.</p>
+                </div>
+                <div class="question-counter">
+                  <strong id="activeQuestionCount">7</strong><span> / 10문항</span>
+                </div>
+              </div>
+
+              {{ question_formset.management_form }}
+              <div id="questionForms">
+                {% for question_form in question_formset %}
+                <div class="question-editor mb-4" data-question-form>
+                  {{ question_form.DELETE.as_hidden }}
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="h6 fw-bold mb-0">
+                      <span class="question-index">{{ forloop.counter }}</span>번 질문
+                    </h3>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-question">
+                      <i class="bi bi-trash me-1"></i>삭제
+                    </button>
+                  </div>
+                  <div class="mb-3">
+                    <label for="{{ question_form.title.id_for_label }}" class="form-label small fw-bold">{{ question_form.title.label }}</label>
+                    {{ question_form.title }}
+                    {% for error in question_form.title.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                  </div>
+                  <div class="mb-3">
+                    <label for="{{ question_form.description.id_for_label }}" class="form-label small fw-bold">{{ question_form.description.label }}</label>
+                    {{ question_form.description }}
+                    {% for error in question_form.description.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label for="{{ question_form.choice_a.id_for_label }}" class="form-label small fw-bold text-danger">{{ question_form.choice_a.label }}</label>
+                      {{ question_form.choice_a }}
+                      {% for error in question_form.choice_a.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="col-md-6">
+                      <label for="{{ question_form.choice_b.id_for_label }}" class="form-label small fw-bold text-primary">{{ question_form.choice_b.label }}</label>
+                      {{ question_form.choice_b }}
+                      {% for error in question_form.choice_b.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                    </div>
+                  </div>
+                </div>
+                {% endfor %}
+              </div>
+
+              <template id="emptyQuestionForm">
+                <div class="question-editor mb-4" data-question-form>
+                  {{ question_formset.empty_form.DELETE.as_hidden }}
+                  <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="h6 fw-bold mb-0"><span class="question-index"></span>번 질문</h3>
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-question">
+                      <i class="bi bi-trash me-1"></i>삭제
+                    </button>
+                  </div>
+                  <div class="mb-3">
+                    <label for="{{ question_formset.empty_form.title.id_for_label }}" class="form-label small fw-bold">질문</label>
+                    {{ question_formset.empty_form.title }}
+                  </div>
+                  <div class="mb-3">
+                    <label for="{{ question_formset.empty_form.description.id_for_label }}" class="form-label small fw-bold">설명</label>
+                    {{ question_formset.empty_form.description }}
+                  </div>
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label for="{{ question_formset.empty_form.choice_a.id_for_label }}" class="form-label small fw-bold text-danger">선택 A</label>
+                      {{ question_formset.empty_form.choice_a }}
+                    </div>
+                    <div class="col-md-6">
+                      <label for="{{ question_formset.empty_form.choice_b.id_for_label }}" class="form-label small fw-bold text-primary">선택 B</label>
+                      {{ question_formset.empty_form.choice_b }}
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <button type="button" class="btn btn-outline-primary w-100 py-3 fw-bold" id="addQuestion">
+                <i class="bi bi-plus-circle me-2"></i>질문 추가
+              </button>
+            </div>
+          </div>
+
+          <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4">
+              <div class="form-check mb-3">
+                {{ form.safety_agreement }}
+                <label class="form-check-label fw-bold" for="{{ form.safety_agreement.id_for_label }}">
+                  {{ form.safety_agreement.label }}
+                </label>
+                {% for error in form.safety_agreement.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+              </div>
+              <button type="submit" class="btn btn-warning btn-lg w-100 fw-black">
+                <i class="bi bi-send-check me-2"></i>검수 요청하기
+              </button>
+              <p class="small text-muted text-center mt-3 mb-0">제출 후 관리자가 승인하기 전까지 공개되지 않습니다.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

@@ -17,6 +17,14 @@
         {% if question.category %}
         <span class="badge bg-primary mb-3">{{ question.category.name }}</span>
         {% endif %}
+        {% if question.game_set %}
+        <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="badge bg-success mb-3 text-decoration-none">
+          <i class="bi bi-person-check me-1"></i>{{ question.game_set.creator.username }} 제작
+        </a>
+        <p class="small text-muted mb-2">
+          <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="text-muted">{{ question.game_set.title }}</a>
+        </p>
+        {% endif %}
         <h1 class="fw-black" style="font-size:clamp(1.3rem,4vw,2rem); line-height:1.4">
           {{ question.title }}
         </h1>

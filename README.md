@@ -24,8 +24,10 @@
 | 모델 | BalanceGame + Choice (2개) | **Category, Question, Choice, Vote, ResultTemplate** |
 | 결과 | 투표 비율만 표시 | **7단계 등급 + 해석 문구 + 키워드 + 공유 문구** |
 | 플레이 흐름 | 랜덤 질문 반복 가능 | **완료 질문 제외 + 진행률 + 선택 기록** |
+| 사용자 기능 | 없음 | **회원가입·로그인 + 7~10문항 게임 제작** |
+| 콘텐츠 안전 | 없음 | **금칙어 차단 + 근거 URL + 관리자 사전 승인** |
 | 환경변수 | 하드코딩 | **django-environ (.env)** |
-| 테스트 | 없음 | **20개 테스트 (100% 통과)** |
+| 테스트 | 없음 | **37개 테스트 (100% 통과)** |
 
 ### 핵심 설계 결정
 
@@ -81,6 +83,16 @@ with transaction.atomic():
 
 `ResultTemplate`의 문구에 알 수 없는 변수가 포함되어도 서버 오류가 발생하지 않도록 `_SafeDict`를 활용한 `safe_format()` 함수를 구현했습니다.
 
+#### 6. 사용자 제작 콘텐츠 사전 검수
+
+회원은 하나의 주제에 7~10개의 질문을 구성해 제출할 수 있습니다.
+
+- 성인·음란, 혐오·차별, 자해·불법 행동 관련 금칙어를 제출 단계에서 차단
+- 사실·통계·의학·금융 주장은 `사실·정보형`과 검증 자료 URL 필수
+- 모든 사용자 제작 세트는 `검수 대기`로 저장되며 승인 전에는 목록·랜덤·투표 경로에서 제외
+- 관리자 승인 시에만 세트의 문항을 일괄 활성화
+- 관리자 반려 시 문항 비공개 유지 및 반려 사유 기록
+
 ---
 
 ## 프로젝트 구조
@@ -96,13 +108,14 @@ game/
 │   ├── settings.py
 │   └── urls.py
 ├── 양자택일/                     # 메인 앱
-│   ├── models.py                # 5개 모델
+│   ├── models.py                # 게임·투표·사용자 제작 세트 모델
+│   ├── moderation.py            # 금칙어 및 검증 필요 표현 검사
 │   ├── services.py              # 등급 판정, 결과 생성, 투표 처리
-│   ├── forms.py                 # VoteForm
-│   ├── views.py                 # 6개 뷰 클래스
-│   ├── urls.py                  # 7개 URL 패턴
+│   ├── forms.py                 # 투표·회원·게임 제작 폼
+│   ├── views.py                 # 플레이·회원·제작·기록 뷰
+│   ├── urls.py                  # 서비스 URL 패턴
 │   ├── admin.py                 # 관리자 인터페이스
-│   ├── tests.py                 # 16개 단위 테스트
+│   ├── tests.py                 # 37개 자동 테스트
 │   └── management/
 │       └── commands/
 │           └── seed_data.py     # 샘플 데이터 생성 커맨드
@@ -113,7 +126,13 @@ game/
 │   │   ├── list.html            # 게임 목록
 │   │   ├── detail.html          # 질문 상세 (투표)
 │   │   ├── result.html          # 투표 결과
-│   │   └── progress.html        # 내 플레이 진행률·최근 선택
+│   │   ├── progress.html        # 내 플레이 진행률·최근 선택
+│   │   ├── create.html          # 7~10문항 게임 제작
+│   │   ├── my_creations.html    # 내 제출·검수 현황
+│   │   └── set_detail.html      # 사용자 제작 주제 플레이
+│   ├── registration/
+│   │   ├── login.html           # 로그인
+│   │   └── signup.html          # 회원가입
 │   └── categories/
 │       └── list.html            # 카테고리별 목록
 └── static/
@@ -135,8 +154,14 @@ game/
 | `/games/<id>/vote/` | `VoteView` | 투표 처리 (POST 전용) |
 | `/games/<id>/result/` | `ResultView` | 결과 페이지 |
 | `/my-results/` | `ProgressView` | 내 진행률·카테고리별 현황·최근 선택 |
+| `/games/create/` | `GameSetCreateView` | 7~10문항 사용자 게임 제작 |
+| `/my-games/` | `MyGameSetListView` | 내 제출 및 검수 상태 |
+| `/topics/<id>/` | `PublicGameSetDetailView` | 승인된 사용자 제작 주제 플레이 |
+| `/accounts/signup/` | `SignupView` | 회원가입 |
+| `/accounts/login/` | `LoginView` | 로그인 |
+| `/accounts/logout/` | `LogoutView` | 로그아웃 (POST) |
 | `/categories/<slug>/` | `CategoryListView` | 카테고리별 목록 |
-| `/admin/` | Django Admin | 관리자 페이지 |
+| `/admin/` | Django Admin | 사용자 게임 검수·승인·반려 |
 
 ---
 
@@ -187,7 +212,7 @@ python manage.py runserver
 python manage.py test 양자택일 --verbosity=2
 ```
 
-16개 테스트 항목:
+37개 테스트 항목:
 
 1. 투표 저장 테스트
 2. 중복투표 방지 테스트 (애플리케이션 레벨)
@@ -205,6 +230,17 @@ python manage.py test 양자택일 --verbosity=2
 14. GET 요청 투표 차단 테스트
 15. 다중 세션 집계 정확성 테스트
 16. 투표 후 등급/비율 정확성 테스트
+17. 반복 없는 랜덤·다음 게임 테스트
+18. 플레이 진행률 집계 테스트
+19. 회원가입·로그인·로그아웃 테스트
+20. 게임 제작 로그인 보호 테스트
+21. 사용자 제작 7~10문항 제한 테스트
+22. 성인 콘텐츠 제출 차단 테스트
+23. 사실형 콘텐츠 근거 URL 검증 테스트
+24. 검증되지 않은 강한 주장 차단 테스트
+25. 사용자별 제작 목록 접근 범위 테스트
+26. 검수 대기 콘텐츠 비공개 테스트
+27. 관리자 승인·반려 및 공개 전환 테스트
 
 ---
 

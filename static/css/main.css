@@ -259,6 +259,132 @@ body {
   font-size: 1.75rem;
 }
 
+/* ===== 회원 / 게임 제작 ===== */
+.auth-section {
+  min-height: 70vh;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(220, 53, 69, 0.08), transparent 22rem),
+    radial-gradient(circle at 90% 80%, rgba(13, 110, 253, 0.1), transparent 24rem);
+}
+
+.auth-icon,
+.policy-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 1rem;
+  background: rgba(13, 110, 253, 0.1);
+  color: #0d6efd;
+}
+
+.auth-icon {
+  width: 4rem;
+  height: 4rem;
+  font-size: 1.65rem;
+}
+
+.creator-hero {
+  background:
+    radial-gradient(circle at 85% 20%, rgba(255, 193, 7, 0.2), transparent 22rem),
+    linear-gradient(180deg, #eef3ff 0%, #f7f8fc 100%);
+}
+
+.policy-card {
+  background: #eef8f2;
+  border: 1px solid rgba(25, 135, 84, 0.18) !important;
+}
+
+.policy-icon {
+  width: 3rem;
+  height: 3rem;
+  background: rgba(25, 135, 84, 0.12);
+  color: #198754;
+  font-size: 1.3rem;
+}
+
+.section-number {
+  display: grid;
+  width: 2.2rem;
+  height: 2.2rem;
+  place-items: center;
+  border-radius: 50%;
+  background: #0d6efd;
+  color: #fff;
+  font-weight: 900;
+}
+
+.question-counter {
+  padding: 0.6rem 1rem;
+  border-radius: 2rem;
+  background: #f0f4ff;
+  color: #6c757d;
+}
+
+.question-counter strong {
+  color: #0d6efd;
+  font-size: 1.3rem;
+}
+
+.question-editor {
+  padding: 1.25rem;
+  border: 1px solid #e2e5ec;
+  border-radius: 1rem;
+  background: #fafbfe;
+}
+
+.choice-a-input {
+  border-left: 4px solid var(--color-a);
+}
+
+.choice-b-input {
+  border-left: 4px solid var(--color-b);
+}
+
+.reference-required label::after {
+  content: ' 필수';
+  color: #dc3545;
+  font-size: 0.75rem;
+}
+
+.creation-description {
+  min-height: 2.6rem;
+}
+
+.creation-card {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.creation-card:hover {
+  transform: translateY(-3px);
+}
+
+.set-hero {
+  background:
+    radial-gradient(circle at 90% 15%, rgba(13, 110, 253, 0.12), transparent 23rem),
+    linear-gradient(180deg, #f0f4ff 0%, #f7f8fc 100%);
+}
+
+.set-question-item {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.set-question-item:hover {
+  transform: translateX(0.3rem);
+  box-shadow: 0 0.75rem 2rem rgba(20, 35, 80, 0.1) !important;
+}
+
+.set-question-number {
+  display: grid;
+  width: 2.3rem;
+  height: 2.3rem;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 0.8rem;
+  background: #0d6efd;
+  color: #fff;
+  font-weight: 900;
+}
+
 .grade-legendary_minority {
   background: linear-gradient(135deg, #f59e0b, #d97706);
   color: #fff;

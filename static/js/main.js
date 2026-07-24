@@ -43,3 +43,109 @@ function onCopyFallback(text) {
     }
   };
 }
+
+function initGameCreator() {
+  const form = document.getElementById('gameSetForm');
+  const formsContainer = document.getElementById('questionForms');
+  const addButton = document.getElementById('addQuestion');
+  const emptyTemplate = document.getElementById('emptyQuestionForm');
+  const totalFormsInput = document.getElementById('id_questions-TOTAL_FORMS');
+  const counter = document.getElementById('activeQuestionCount');
+
+  if (!form || !formsContainer || !addButton || !emptyTemplate || !totalFormsInput) {
+    return;
+  }
+
+  const minQuestions = 7;
+  const maxQuestions = 10;
+
+  function deleteInput(editor) {
+    return editor.querySelector('input[name$="-DELETE"]');
+  }
+
+  function isDeleted(editor) {
+    const input = deleteInput(editor);
+    if (!input) return false;
+    const value = input.value.toLowerCase();
+    return value === 'on' || value === 'true' || value === '1';
+  }
+
+  function activeEditors() {
+    return Array.from(formsContainer.querySelectorAll('[data-question-form]')).filter(
+      function (editor) {
+        return !isDeleted(editor);
+      }
+    );
+  }
+
+  function updateCreatorState() {
+    const active = activeEditors();
+    active.forEach(function (editor, index) {
+      const number = editor.querySelector('.question-index');
+      if (number) number.textContent = String(index + 1);
+    });
+
+    formsContainer.querySelectorAll('[data-question-form]').forEach(function (editor) {
+      editor.hidden = isDeleted(editor);
+    });
+
+    const count = active.length;
+    if (counter) counter.textContent = String(count);
+    addButton.disabled = count >= maxQuestions;
+    active.forEach(function (editor) {
+      const removeButton = editor.querySelector('.remove-question');
+      if (removeButton) removeButton.disabled = count <= minQuestions;
+    });
+  }
+
+  function bindRemoveButton(editor) {
+    const removeButton = editor.querySelector('.remove-question');
+    if (!removeButton || removeButton.dataset.bound === 'true') return;
+    removeButton.dataset.bound = 'true';
+    removeButton.addEventListener('click', function () {
+      if (activeEditors().length <= minQuestions) return;
+      const input = deleteInput(editor);
+      if (input) input.value = 'on';
+      updateCreatorState();
+    });
+  }
+
+  formsContainer.querySelectorAll('[data-question-form]').forEach(bindRemoveButton);
+
+  addButton.addEventListener('click', function () {
+    if (activeEditors().length >= maxQuestions) return;
+    const index = Number.parseInt(totalFormsInput.value, 10);
+    const html = emptyTemplate.innerHTML.replaceAll('__prefix__', String(index));
+    formsContainer.insertAdjacentHTML('beforeend', html);
+    totalFormsInput.value = String(index + 1);
+    const editor = formsContainer.lastElementChild;
+    if (editor) bindRemoveButton(editor);
+    updateCreatorState();
+  });
+
+  const basisSelect = document.getElementById('id_content_basis');
+  const referenceGroup = document.getElementById('referenceUrlGroup');
+  function updateReferenceState() {
+    if (!basisSelect || !referenceGroup) return;
+    referenceGroup.classList.toggle(
+      'reference-required',
+      basisSelect.value === 'SOURCED'
+    );
+  }
+  if (basisSelect) {
+    basisSelect.addEventListener('change', updateReferenceState);
+    updateReferenceState();
+  }
+
+  form.addEventListener('submit', function (event) {
+    const count = activeEditors().length;
+    if (count < minQuestions || count > maxQuestions) {
+      event.preventDefault();
+      alert('질문은 7개 이상 10개 이하로 구성해주세요.');
+    }
+  });
+
+  updateCreatorState();
+}
+
+document.addEventListener('DOMContentLoaded', initGameCreator);

@@ -80,3 +80,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.cookie.CookieStorage'
+
+LOGIN_URL = 'games:login'
+LOGIN_REDIRECT_URL = 'games:index'
+LOGOUT_REDIRECT_URL = 'games:index'

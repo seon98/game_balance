@@ -126,10 +126,17 @@
       </p>
 
       <!-- 이동 버튼 -->
+      {% if game_set_completed %}
+      <div class="alert alert-success text-center mb-4">
+        <i class="bi bi-trophy-fill me-1"></i>
+        <strong>{{ question.game_set.title }}</strong> 주제의 질문을 모두 완료했어요!
+        <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="alert-link ms-1">주제 기록 보기</a>
+      </div>
+      {% endif %}
       <div class="d-flex flex-wrap justify-content-center gap-3">
         {% if next_question %}
         <a href="{% url 'games:detail' next_question.id %}" class="btn btn-warning fw-bold px-4">
-          <i class="bi bi-arrow-right-circle me-2"></i>다음 랜덤 게임
+          <i class="bi bi-arrow-right-circle me-2"></i>{% if next_is_same_set %}이 주제의 다음 질문{% else %}다음 랜덤 게임{% endif %}
         </a>
         {% else %}
         <a href="{% url 'games:progress' %}" class="btn btn-warning fw-bold px-4">

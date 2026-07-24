@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
+
+from .moderation import requires_reference, validate_safe_text
 
 
 class ResultGrade(models.TextChoices):
@@ -28,6 +32,157 @@ class Category(models.Model):
         return self.name
 
 
+class GameSet(models.Model):
+    MIN_QUESTIONS = 7
+    MAX_QUESTIONS = 10
+
+    class Status(models.TextChoices):
+        PENDING = 'PENDING', '검수 대기'
+        APPROVED = 'APPROVED', '승인'
+        REJECTED = 'REJECTED', '반려'
+
+    class ContentBasis(models.TextChoices):
+        HYPOTHETICAL = 'HYPOTHETICAL', '가상·취향형'
+        SOURCED = 'SOURCED', '사실·정보형'
+
+    creator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='created_game_sets',
+        verbose_name='제작자',
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.PROTECT,
+        related_name='game_sets',
+        verbose_name='카테고리',
+    )
+    title = models.CharField(max_length=120, verbose_name='주제')
+    description = models.TextField(blank=True, verbose_name='주제 설명')
+    content_basis = models.CharField(
+        max_length=20,
+        choices=ContentBasis.choices,
+        default=ContentBasis.HYPOTHETICAL,
+        verbose_name='콘텐츠 유형',
+    )
+    reference_url = models.URLField(
+        blank=True,
+        verbose_name='검증 자료 URL',
+        help_text='사실·정보형 콘텐츠는 신뢰할 수 있는 근거 URL이 필요합니다.',
+    )
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING,
+        verbose_name='검수 상태',
+    )
+    moderation_note = models.TextField(blank=True, verbose_name='검수 메모')
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reviewed_game_sets',
+        verbose_name='검수자',
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True, verbose_name='검수일')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='제출일')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일')
+
+    class Meta:
+        verbose_name = '사용자 제작 게임 세트'
+        verbose_name_plural = '사용자 제작 게임 세트 목록'
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:
+        return self.title
+
+    def clean(self) -> None:
+        errors: dict[str, list[str] | str] = {}
+        for field_name, value in (
+            ('title', self.title),
+            ('description', self.description),
+        ):
+            try:
+                validate_safe_text(value)
+            except ValidationError as exc:
+                errors[field_name] = exc.messages
+
+        if self.content_basis == self.ContentBasis.SOURCED and not self.reference_url:
+            errors['reference_url'] = '사실·정보형 콘텐츠는 검증 자료 URL을 입력해야 합니다.'
+
+        if errors:
+            raise ValidationError(errors)
+
+    def validate_submission(self) -> None:
+        self.full_clean()
+        if not self.pk:
+            raise ValidationError('저장된 게임 세트만 검수할 수 있습니다.')
+
+        questions = list(self.questions.prefetch_related('choices').all())
+        if not self.MIN_QUESTIONS <= len(questions) <= self.MAX_QUESTIONS:
+            raise ValidationError(
+                f'주제별 문항 수는 {self.MIN_QUESTIONS}~{self.MAX_QUESTIONS}개여야 합니다.'
+            )
+
+        errors: list[str] = []
+        content_texts = [self.title, self.description]
+        for index, question in enumerate(questions, start=1):
+            content_texts.extend([question.title, question.description])
+            try:
+                question.full_clean()
+                choices = list(question.choices.all())
+                if len(choices) != 2 or {choice.code for choice in choices} != {'A', 'B'}:
+                    errors.append(f'{index}번 문항의 선택지는 A와 B 두 개여야 합니다.')
+                for choice in choices:
+                    content_texts.append(choice.text)
+                    choice.full_clean()
+            except ValidationError as exc:
+                errors.append(f'{index}번 문항: {" ".join(exc.messages)}')
+
+        if (
+            requires_reference(*content_texts)
+            and self.content_basis != self.ContentBasis.SOURCED
+        ):
+            errors.append('검증이 필요한 주장은 사실·정보형과 근거 URL이 필요합니다.')
+
+        if errors:
+            raise ValidationError(errors)
+
+    def approve(self, reviewer: settings.AUTH_USER_MODEL) -> None:
+        self.validate_submission()
+        self.status = self.Status.APPROVED
+        self.moderation_note = ''
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.save(
+            update_fields=[
+                'status',
+                'moderation_note',
+                'reviewed_by',
+                'reviewed_at',
+                'updated_at',
+            ]
+        )
+        self.questions.update(is_active=True, category=self.category)
+
+    def reject(self, reviewer: settings.AUTH_USER_MODEL, note: str = '') -> None:
+        self.status = self.Status.REJECTED
+        self.moderation_note = note
+        self.reviewed_by = reviewer
+        self.reviewed_at = timezone.now()
+        self.save(
+            update_fields=[
+                'status',
+                'moderation_note',
+                'reviewed_by',
+                'reviewed_at',
+                'updated_at',
+            ]
+        )
+        self.questions.update(is_active=False)
+
+
 class Question(models.Model):
     category = models.ForeignKey(
         Category,
@@ -36,6 +191,14 @@ class Question(models.Model):
         blank=True,
         related_name='questions',
         verbose_name='카테고리',
+    )
+    game_set = models.ForeignKey(
+        GameSet,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='questions',
+        verbose_name='사용자 제작 세트',
     )
     title = models.CharField(max_length=200, verbose_name='제목')
     description = models.TextField(blank=True, verbose_name='설명')
@@ -51,6 +214,23 @@ class Question(models.Model):
 
     def __str__(self) -> str:
         return self.title
+
+    def clean(self) -> None:
+        errors: dict[str, list[str] | str] = {}
+        for field_name, value in (
+            ('title', self.title),
+            ('description', self.description),
+        ):
+            try:
+                validate_safe_text(value)
+            except ValidationError as exc:
+                errors[field_name] = exc.messages
+
+        if self.game_set_id and self.category_id != self.game_set.category_id:
+            errors['category'] = '문항의 카테고리는 게임 세트의 카테고리와 같아야 합니다.'
+
+        if errors:
+            raise ValidationError(errors)
 
     def total_votes(self) -> int:
         result = self.choices.aggregate(total=models.Sum('vote_count'))
@@ -94,6 +274,9 @@ class Choice(models.Model):
 
     def __str__(self) -> str:
         return f'{self.question.title} - {self.code}: {self.text}'
+
+    def clean(self) -> None:
+        validate_safe_text(self.text)
 
     def vote_percentage(self) -> float:
         total = self.question.total_votes()
