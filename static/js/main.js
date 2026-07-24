@@ -225,8 +225,10 @@ function initGameCreator() {
           throw new Error(result.error || '문항을 만들지 못했습니다.');
         }
         fillDrafts(result);
+        const generatorLabel = result.source === 'ai' ? 'AI가' : '안전한 기본 생성기가';
         setGeneratorStatus(
-          result.drafts.length + '개 질문 초안을 채웠습니다. 내용을 확인하고 원하는 표현으로 수정해주세요.',
+          generatorLabel + ' ' + result.drafts.length
+            + '개 질문 초안을 채웠습니다. 내용을 확인하고 원하는 표현으로 수정해주세요.',
           'success'
         );
       } catch (error) {

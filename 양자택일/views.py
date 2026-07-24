@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -25,7 +26,7 @@ from .forms import (
 )
 from .models import Category, Choice, GameSet, Question, ResultGrade, Vote
 from .moderation import requires_reference
-from .question_generator import generate_question_drafts
+from .question_generator import generate_question_drafts_with_fallback
 from .services import (
     TemplateResultGenerator,
     build_game_set_result,
@@ -631,7 +632,10 @@ class QuestionDraftGenerateView(LoginRequiredMixin, View):
             )
 
         try:
-            result = generate_question_drafts(
+            result = generate_question_drafts_with_fallback(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                timeout=settings.OPENAI_TIMEOUT,
                 keywords=form.cleaned_data['keywords'],
                 count=form.cleaned_data['count'],
                 category_name=form.cleaned_data['category'].name,

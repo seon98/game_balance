@@ -5,6 +5,8 @@ import environ
 env = environ.Env(
     DEBUG=(bool, False),
     ALLOWED_HOSTS=(list, ['127.0.0.1', 'localhost']),
+    OPENAI_MODEL=(str, 'gpt-5.6'),
+    OPENAI_TIMEOUT=(float, 30.0),
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -14,6 +16,9 @@ environ.Env.read_env(BASE_DIR / '.env')
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
+OPENAI_API_KEY = env('OPENAI_API_KEY', default='')
+OPENAI_MODEL = env('OPENAI_MODEL')
+OPENAI_TIMEOUT = env('OPENAI_TIMEOUT')
 
 INSTALLED_APPS = [
     'django.contrib.admin',

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import logging
 import random
 from dataclasses import asdict, dataclass
 
 from django.core.exceptions import ValidationError
 
 from .moderation import requires_reference, validate_safe_text
+from .openai_question_generator import generate_openai_question_drafts
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -269,3 +274,37 @@ def generate_question_drafts(
         ),
         'drafts': [asdict(draft) for draft in drafts],
     }
+
+
+def generate_question_drafts_with_fallback(
+    *,
+    api_key: str,
+    model: str,
+    timeout: float,
+    keywords: list[str],
+    count: int,
+    category_name: str,
+) -> dict[str, object]:
+    if api_key:
+        try:
+            return generate_openai_question_drafts(
+                api_key=api_key,
+                model=model,
+                timeout=timeout,
+                keywords=keywords,
+                count=count,
+                category_name=category_name,
+            )
+        except Exception as exc:
+            logger.warning(
+                'OpenAI question generation failed; using local fallback (%s).',
+                type(exc).__name__,
+            )
+
+    result = generate_question_drafts(
+        keywords=keywords,
+        count=count,
+        category_name=category_name,
+    )
+    result['source'] = 'local'
+    return result

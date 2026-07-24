@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from io import StringIO
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 
 from .models import (
@@ -18,6 +20,11 @@ from .models import (
     ResultTemplate,
     Vote,
 )
+from .openai_question_generator import (
+    GeneratedQuestionSet,
+    generate_openai_question_drafts,
+)
+from .question_generator import generate_question_drafts_with_fallback
 from .services import (
     ResultData,
     TemplateResultGenerator,
@@ -603,6 +610,7 @@ class UserGameCreationTest(TestCase):
         self.assertNotContains(response, other.title)
 
 
+@override_settings(OPENAI_API_KEY='')
 class QuestionDraftGenerationTest(TestCase):
     def setUp(self) -> None:
         self.user = get_user_model().objects.create_user(
@@ -646,6 +654,7 @@ class QuestionDraftGenerationTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
+        self.assertEqual(payload['source'], 'local')
         self.assertEqual(len(payload['drafts']), 10)
         self.assertEqual(len({draft['title'] for draft in payload['drafts']}), 10)
         self.assertEqual(
@@ -708,6 +717,135 @@ class QuestionDraftGenerationTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.json()['drafts']), 7)
+
+    @override_settings(
+        OPENAI_API_KEY='test-key',
+        OPENAI_MODEL='gpt-5.6',
+        OPENAI_TIMEOUT=2.0,
+    )
+    @patch('양자택일.question_generator.generate_openai_question_drafts')
+    def test_configured_api_key_uses_openai_generator(self, mock_generate) -> None:
+        self.client.force_login(self.user)
+        mock_generate.return_value = {
+            'title_suggestion': '여행 선택 보고서',
+            'description_suggestion': '여행에 관한 안전한 취향 질문입니다.',
+            'drafts': [
+                {
+                    'title': f'여행 질문 {index}',
+                    'description': f'여행 상황 {index}',
+                    'choice_a': f'A 선택 {index}',
+                    'choice_b': f'B 선택 {index}',
+                }
+                for index in range(1, 8)
+            ],
+            'source': 'ai',
+        }
+
+        response = self.client.post(self.url, {
+            'keywords': '여행',
+            'count': '7',
+            'category': str(self.category.pk),
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['source'], 'ai')
+        mock_generate.assert_called_once_with(
+            api_key='test-key',
+            model='gpt-5.6',
+            timeout=2.0,
+            keywords=['여행'],
+            count=7,
+            category_name='여행',
+        )
+
+    @patch(
+        '양자택일.question_generator.generate_openai_question_drafts',
+        side_effect=RuntimeError('temporary failure'),
+    )
+    def test_openai_failure_falls_back_to_local_generator(self, _mock_generate) -> None:
+        with self.assertLogs('양자택일.question_generator', level='WARNING'):
+            result = generate_question_drafts_with_fallback(
+                api_key='test-key',
+                model='gpt-5.6',
+                timeout=2.0,
+                keywords=['여행'],
+                count=7,
+                category_name='여행',
+            )
+
+        self.assertEqual(result['source'], 'local')
+        self.assertEqual(len(result['drafts']), 7)
+
+    def test_structured_openai_output_is_validated_without_network(self) -> None:
+        generated = GeneratedQuestionSet(
+            title_suggestion='여행 선택 보고서',
+            description_suggestion='여행 취향을 일곱 가지 선택으로 알아봅니다.',
+            drafts=[
+                {
+                    'title': f'여행 질문 {index}',
+                    'description': f'여행 상황 {index}에서 선택하세요.',
+                    'choice_a': f'여행 선택 A-{index}',
+                    'choice_b': f'여행 선택 B-{index}',
+                }
+                for index in range(1, 8)
+            ],
+        )
+
+        class FakeResponses:
+            def __init__(self) -> None:
+                self.arguments = {}
+
+            def parse(self, **kwargs):
+                self.arguments = kwargs
+                return SimpleNamespace(output_parsed=generated)
+
+        responses = FakeResponses()
+        result = generate_openai_question_drafts(
+            api_key='test-key',
+            model='gpt-5.6',
+            timeout=2.0,
+            keywords=['여행'],
+            count=7,
+            category_name='여행',
+            client=SimpleNamespace(responses=responses),
+        )
+
+        self.assertEqual(result['source'], 'ai')
+        self.assertEqual(len(result['drafts']), 7)
+        self.assertEqual(responses.arguments['model'], 'gpt-5.6')
+        self.assertIs(responses.arguments['text_format'], GeneratedQuestionSet)
+        self.assertFalse(responses.arguments['store'])
+
+    def test_unsafe_openai_output_is_rejected_after_generation(self) -> None:
+        generated = GeneratedQuestionSet(
+            title_suggestion='여행 선택 보고서',
+            description_suggestion='여행 취향을 알아봅니다.',
+            drafts=[
+                {
+                    'title': f'여행 질문 {index}',
+                    'description': f'여행 상황 {index}에서 선택하세요.',
+                    'choice_a': '19금 여행을 선택한다' if index == 1 else f'여행 선택 A-{index}',
+                    'choice_b': f'여행 선택 B-{index}',
+                }
+                for index in range(1, 8)
+            ],
+        )
+        client = SimpleNamespace(
+            responses=SimpleNamespace(
+                parse=lambda **_kwargs: SimpleNamespace(output_parsed=generated),
+            ),
+        )
+
+        with self.assertRaises(ValidationError):
+            generate_openai_question_drafts(
+                api_key='test-key',
+                model='gpt-5.6',
+                timeout=2.0,
+                keywords=['여행'],
+                count=7,
+                category_name='여행',
+                client=client,
+            )
 
 
 class UserGameModerationTest(TestCase):
