@@ -5,6 +5,174 @@
   --choice-radius: 1.25rem;
 }
 
+/* ===== 인트로 ===== */
+.welcome-page {
+  min-height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  background: #080d2b;
+}
+
+.welcome-enter {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  overflow: hidden;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+}
+
+.welcome-enter:focus-visible {
+  outline: 4px solid #ffc107;
+  outline-offset: -8px;
+}
+
+.welcome-panel {
+  position: absolute;
+  inset-block: 0;
+  width: 50.2%;
+  transition: transform 0.85s cubic-bezier(0.77, 0, 0.18, 1);
+}
+
+.welcome-panel::after {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.13), transparent 42%),
+    repeating-linear-gradient(135deg, transparent 0 24px, rgba(255, 255, 255, 0.025) 24px 25px);
+  content: '';
+}
+
+.welcome-panel-a {
+  left: 0;
+  background: linear-gradient(135deg, #7f1024, #dc3545);
+  clip-path: polygon(0 0, 100% 0, 91% 50%, 100% 100%, 0 100%);
+}
+
+.welcome-panel-b {
+  right: 0;
+  background: linear-gradient(225deg, #063b98, #0d6efd);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 9% 50%);
+}
+
+.welcome-letter {
+  position: absolute;
+  top: 50%;
+  color: rgba(255, 255, 255, 0.08);
+  font-size: clamp(18rem, 42vw, 42rem);
+  font-weight: 900;
+  line-height: 0.7;
+  transform: translateY(-50%);
+}
+
+.welcome-panel-a .welcome-letter { left: 5vw; }
+.welcome-panel-b .welcome-letter { right: 5vw; }
+
+.welcome-content {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  width: min(90vw, 48rem);
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.35s ease, transform 0.7s ease;
+}
+
+.welcome-kicker {
+  margin-bottom: 1.2rem;
+  color: #ffe28a;
+  font-size: clamp(0.7rem, 1.5vw, 0.88rem);
+  font-weight: 800;
+  letter-spacing: 0.18em;
+}
+
+.welcome-title {
+  font-size: clamp(4rem, 13vw, 8.5rem);
+  font-weight: 900;
+  letter-spacing: -0.08em;
+  line-height: 0.95;
+  text-shadow: 0 0.18em 0 rgba(0, 0, 0, 0.18);
+}
+
+.welcome-copy {
+  margin-top: 1.8rem;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: clamp(0.95rem, 2vw, 1.18rem);
+  line-height: 1.8;
+}
+
+.welcome-prompt {
+  margin-top: 3rem;
+  padding: 0.75rem 1.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  animation: welcome-pulse 1.8s ease-in-out infinite;
+  backdrop-filter: blur(8px);
+}
+
+.welcome-vs {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  width: clamp(4rem, 8vw, 6rem);
+  height: clamp(4rem, 8vw, 6rem);
+  place-items: center;
+  border: 5px solid #fff;
+  border-radius: 50%;
+  background: #ffc107;
+  color: #111b4b;
+  font-size: clamp(1.1rem, 2vw, 1.7rem);
+  font-weight: 900;
+  box-shadow: 0 0 0 0.6rem rgba(255, 193, 7, 0.18), 0 1rem 3rem rgba(0, 0, 0, 0.35);
+  transform: translateY(31vh);
+  transition: opacity 0.25s ease, transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.welcome-flash {
+  position: absolute;
+  z-index: 10;
+  width: 1px;
+  height: 1px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.is-entering .welcome-panel-a { transform: translateX(-105%); }
+.is-entering .welcome-panel-b { transform: translateX(105%); }
+.is-entering .welcome-content {
+  opacity: 0;
+  transform: scale(1.16);
+}
+.is-entering .welcome-vs {
+  opacity: 0;
+  transform: translateY(31vh) scale(2.4) rotate(16deg);
+}
+.is-entering .welcome-flash {
+  opacity: 1;
+  animation: welcome-flash 0.8s ease-out forwards;
+}
+
+@keyframes welcome-pulse {
+  0%, 100% { transform: translateY(0); opacity: 0.72; }
+  50% { transform: translateY(-0.35rem); opacity: 1; }
+}
+
+@keyframes welcome-flash {
+  from { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.95); }
+  to { box-shadow: 0 0 0 100vmax rgba(255, 255, 255, 0); }
+}
+
 body {
   font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
   background: #f7f8fc;
@@ -39,6 +207,31 @@ body {
 .game-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.12) !important;
+}
+
+.game-set-card {
+  border-radius: 1.15rem !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.game-set-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0.9rem 2.4rem rgba(20, 35, 80, 0.13) !important;
+}
+
+.game-set-card .progress {
+  height: 0.45rem;
+}
+
+.game-set-description {
+  min-height: 2.7rem;
+}
+
+.set-card-questions {
+  min-height: 3.9rem;
+  padding: 0.9rem;
+  border-radius: 0.8rem;
+  background: #f6f8fc;
 }
 
 /* ===== 선택지 필 ===== */
@@ -383,6 +576,94 @@ body {
   background: #0d6efd;
   color: #fff;
   font-weight: 900;
+}
+
+/* ===== 세트 유형 결과 ===== */
+.set-result-hero {
+  background:
+    radial-gradient(circle at 10% 12%, rgba(220, 53, 69, 0.1), transparent 24rem),
+    radial-gradient(circle at 90% 18%, rgba(13, 110, 253, 0.12), transparent 24rem),
+    #f7f8fc;
+}
+
+.result-type-card {
+  overflow: hidden;
+}
+
+.result-type-card::before {
+  display: block;
+  height: 0.45rem;
+  background: linear-gradient(90deg, var(--color-a), #ffc107, var(--color-b));
+  content: '';
+}
+
+.choice-distribution-bar {
+  display: flex;
+  height: 1rem;
+  overflow: hidden;
+  border-radius: 99px;
+  background: #e9ecef;
+}
+
+.distribution-a {
+  background: linear-gradient(90deg, #a90f2c, var(--color-a));
+}
+
+.distribution-b {
+  background: linear-gradient(90deg, var(--color-b), #063c98);
+}
+
+.analysis-switch {
+  padding: 0.3rem;
+  border-radius: 0.9rem;
+  background: #eef1f7;
+}
+
+.analysis-tab {
+  flex: 1;
+  padding: 0.8rem 1rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: #6c757d;
+  font-weight: 700;
+}
+
+.analysis-tab.active {
+  background: #fff;
+  color: #0d6efd;
+  box-shadow: 0 0.2rem 0.8rem rgba(20, 35, 80, 0.08);
+}
+
+.analysis-panel {
+  min-height: 10rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  line-height: 1.9;
+}
+
+.comic-panel {
+  background: #fff8df;
+  border: 1px solid #ffe69c;
+}
+
+.professional-panel {
+  background: #eef5ff;
+  border: 1px solid #cfe2ff;
+}
+
+.set-start-form {
+  width: min(100%, 19rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .welcome-panel,
+  .welcome-content,
+  .welcome-vs,
+  .welcome-prompt {
+    animation: none;
+    transition-duration: 0.01ms;
+  }
 }
 
 .grade-legendary_minority {

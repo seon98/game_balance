@@ -51,6 +51,24 @@ class StyledAuthenticationForm(AuthenticationForm):
             field.widget.attrs['class'] = 'form-control'
 
 
+class NicknameForm(forms.Form):
+    nickname = forms.CharField(
+        label='결과에 표시할 이름',
+        max_length=20,
+        required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': '입력하지 않으면 참여자로 표시됩니다.',
+            'autocomplete': 'nickname',
+        }),
+    )
+
+    def clean_nickname(self) -> str:
+        nickname = self.cleaned_data['nickname'].strip()
+        validate_safe_text(nickname)
+        return nickname
+
+
 class GameSetForm(forms.ModelForm):
     safety_agreement = forms.BooleanField(
         label='성인·혐오·불법 콘텐츠를 포함하지 않았으며 검수 정책에 동의합니다.',

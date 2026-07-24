@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from django.core.management.base import BaseCommand
 
-from 양자택일.models import Category, Choice, Question, ResultGrade, ResultTemplate
+from 양자택일.models import (
+    Category,
+    Choice,
+    GameSet,
+    Question,
+    ResultGrade,
+    ResultTemplate,
+)
+from 양자택일.official_content import ADDITIONAL_QUESTIONS, OFFICIAL_SETS
 
 
 CATEGORIES: list[dict] = [
@@ -63,7 +71,7 @@ QUESTIONS: list[dict] = [
     },
     {
         'category': '직장',
-        'title': '��대 상사와 연봉 6천 vs 좋은 상사와 연봉 3천',
+        'title': '꼰대 상사와 연봉 6천 vs 좋은 상사와 연봉 3천',
         'choice_a': '매일 갈굼받는 꼰대 상사와 함께, 연봉 6천만원',
         'choice_b': '배려 넘치는 좋은 상사와 함께, 연봉 3천만원',
     },
@@ -126,6 +134,8 @@ QUESTIONS: list[dict] = [
         'choice_b': '연봉 5천만원이지만 최신 기술로 새 서비스 개발',
     },
 ]
+
+QUESTIONS.extend(ADDITIONAL_QUESTIONS)
 
 RESULT_TEMPLATES: list[dict] = [
     # LEGENDARY_MINORITY (3개)
@@ -401,11 +411,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         if options['reset']:
             Question.objects.all().delete()
+            GameSet.objects.all().delete()
             Category.objects.all().delete()
             ResultTemplate.objects.all().delete()
             self.stdout.write(self.style.WARNING('기존 데이터를 삭제했습니다.'))
 
         self._create_categories()
+        self._create_official_sets()
         self._create_questions()
         self._create_result_templates()
 
@@ -420,20 +432,56 @@ class Command(BaseCommand):
             if created:
                 self.stdout.write(f'  카테고리 생성: {cat.name}')
 
+    def _create_official_sets(self) -> None:
+        self.official_sets: dict[str, GameSet] = {}
+        for category_name, data in OFFICIAL_SETS.items():
+            category = Category.objects.get(name=category_name)
+            game_set, created = GameSet.objects.update_or_create(
+                category=category,
+                is_official=True,
+                defaults={
+                    'creator': None,
+                    'title': data['title'],
+                    'description': data['description'],
+                    'status': GameSet.Status.APPROVED,
+                    'content_basis': GameSet.ContentBasis.HYPOTHETICAL,
+                },
+            )
+            self.official_sets[category_name] = game_set
+            if created:
+                self.stdout.write(f'  공식 게임 생성: {game_set.title}')
+
     def _create_questions(self) -> None:
+        Question.objects.filter(title__contains='�대 상사').update(
+            title='꼰대 상사와 연봉 6천 vs 좋은 상사와 연봉 3천'
+        )
         for data in QUESTIONS:
-            category = Category.objects.filter(slug=data['category']).first()
-            question, created = Question.objects.get_or_create(
+            category = Category.objects.get(name=data['category'])
+            game_set = self.official_sets[data['category']]
+            question, created = Question.objects.update_or_create(
                 title=data['title'],
                 defaults={
                     'category': category,
+                    'game_set': game_set,
+                    'description': data.get('description', ''),
                     'is_active': True,
                 },
             )
+            Choice.objects.update_or_create(
+                question=question,
+                code=Choice.Code.A,
+                defaults={'text': data['choice_a']},
+            )
+            Choice.objects.update_or_create(
+                question=question,
+                code=Choice.Code.B,
+                defaults={'text': data['choice_b']},
+            )
             if created:
-                Choice.objects.create(question=question, code='A', text=data['choice_a'])
-                Choice.objects.create(question=question, code='B', text=data['choice_b'])
                 self.stdout.write(f'  질문 생성: {question.title}')
+
+        for game_set in self.official_sets.values():
+            game_set.validate_submission()
 
     def _create_result_templates(self) -> None:
         for data in RESULT_TEMPLATES:

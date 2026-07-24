@@ -7,17 +7,29 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db import transaction
-from django.db.models import F, Q, QuerySet
+from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import CreateView, ListView, TemplateView
 from django.urls import reverse_lazy
 
-from .forms import GameQuestionFormSet, GameSetForm, SignupForm, VoteForm
+from .forms import (
+    GameQuestionFormSet,
+    GameSetForm,
+    NicknameForm,
+    SignupForm,
+    VoteForm,
+)
 from .models import Category, Choice, GameSet, Question, ResultGrade, Vote
 from .moderation import requires_reference
-from .services import TemplateResultGenerator, build_result, get_grade, process_vote
+from .services import (
+    TemplateResultGenerator,
+    build_game_set_result,
+    build_result,
+    get_grade,
+    process_vote,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -43,6 +55,41 @@ def _public_questions() -> QuerySet[Question]:
             | Q(game_set__status=GameSet.Status.APPROVED)
         )
     )
+
+
+def _public_game_sets() -> QuerySet[GameSet]:
+    return (
+        GameSet.objects
+        .filter(status=GameSet.Status.APPROVED)
+        .select_related('category', 'creator')
+        .prefetch_related(
+            Prefetch(
+                'questions',
+                queryset=_public_questions()
+                .prefetch_related('choices')
+                .order_by('pk'),
+                to_attr='public_questions',
+            )
+        )
+    )
+
+
+def _add_game_set_progress(
+    game_sets: list[GameSet],
+    completed_ids: set[int],
+) -> None:
+    for game_set in game_sets:
+        questions = game_set.public_questions
+        game_set.question_count = len(questions)
+        game_set.completed_count = sum(
+            question.pk in completed_ids
+            for question in questions
+        )
+        game_set.completion_percentage = (
+            round(game_set.completed_count / game_set.question_count * 100)
+            if game_set.question_count
+            else 0
+        )
 
 
 def _completed_question_ids(request: HttpRequest) -> set[int]:
@@ -78,20 +125,22 @@ def _next_unplayed_question(
 # 메인 / 목록
 # ---------------------------------------------------------------------------
 
+class WelcomeView(TemplateView):
+    template_name = 'welcome.html'
+
+
 class IndexView(TemplateView):
     template_name = 'index.html'
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
-        context['recent_questions'] = (
-            _public_questions()
-            .select_related('category', 'game_set', 'game_set__creator')
-            .prefetch_related('choices')
-            .order_by('-created_at')[:6]
-        )
+        featured_game_sets = list(_public_game_sets().order_by('-is_official', '-created_at')[:6])
         context['categories'] = Category.objects.all()
         context['total_questions'] = _public_questions().count()
         completed_ids = _completed_question_ids(self.request)
+        _add_game_set_progress(featured_game_sets, completed_ids)
+        context['featured_game_sets'] = featured_game_sets
+        context['total_game_sets'] = _public_game_sets().count()
         context['completed_question_ids'] = completed_ids
         context['completed_questions'] = len(completed_ids)
         context['remaining_questions'] = max(
@@ -103,42 +152,39 @@ class IndexView(TemplateView):
 
 class GameListView(ListView):
     template_name = 'games/list.html'
-    context_object_name = 'questions'
+    context_object_name = 'game_sets'
     paginate_by = 12
 
     def get_queryset(self):
-        return (
-            _public_questions()
-            .select_related('category', 'game_set', 'game_set__creator')
-            .prefetch_related('choices')
-        )
+        return _public_game_sets()
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context['categories'] = Category.objects.all()
-        context['completed_question_ids'] = _completed_question_ids(self.request)
+        _add_game_set_progress(
+            list(context['game_sets']),
+            _completed_question_ids(self.request),
+        )
         return context
 
 
 class CategoryListView(ListView):
     template_name = 'categories/list.html'
-    context_object_name = 'questions'
+    context_object_name = 'game_sets'
     paginate_by = 12
 
     def get_queryset(self):
         self.category = get_object_or_404(Category, slug=self.kwargs['slug'])
-        return (
-            _public_questions()
-            .filter(category=self.category)
-            .select_related('game_set', 'game_set__creator')
-            .prefetch_related('choices')
-        )
+        return _public_game_sets().filter(category=self.category)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
         context['category'] = self.category
         context['categories'] = Category.objects.all()
-        context['completed_question_ids'] = _completed_question_ids(self.request)
+        _add_game_set_progress(
+            list(context['game_sets']),
+            _completed_question_ids(self.request),
+        )
         return context
 
 
@@ -148,14 +194,26 @@ class CategoryListView(ListView):
 
 class RandomGameView(View):
     def get(self, request: HttpRequest) -> HttpResponse:
-        question = _next_unplayed_question(request)
-        if question is None:
+        completed_ids = _completed_question_ids(request)
+        game_sets = list(_public_game_sets().order_by('?'))
+        _add_game_set_progress(game_sets, completed_ids)
+        game_set = next(
+            (
+                candidate for candidate in game_sets
+                if candidate.completed_count < candidate.question_count
+            ),
+            None,
+        )
+        if game_set is None:
+            legacy_question = _next_unplayed_question(request)
+            if legacy_question:
+                return redirect('games:detail', question_id=legacy_question.pk)
             if _public_questions().exists():
                 messages.success(request, '준비된 밸런스게임을 모두 완료했어요!')
                 return redirect('games:progress')
             messages.info(request, '등록된 게임이 없습니다.')
             return redirect('games:list')
-        return redirect('games:detail', question_id=question.pk)
+        return redirect('games:game_set_detail', game_set_id=game_set.pk)
 
 
 # ---------------------------------------------------------------------------
@@ -248,6 +306,15 @@ class VoteView(View):
             return redirect('games:detail', question_id=question_id)
 
         request.session[_result_session_key(question_id)] = dataclasses.asdict(result)
+
+        if (
+            question.game_set
+            and _next_unplayed_question(request, question.game_set) is None
+        ):
+            return redirect(
+                'games:game_set_result',
+                game_set_id=question.game_set_id,
+            )
 
         return redirect('games:result', question_id=question_id)
 
@@ -574,5 +641,99 @@ class PublicGameSetDetailView(TemplateView):
             ),
             'next_question': next_question,
             'categories': Category.objects.all(),
+            'nickname_form': NicknameForm(),
         })
         return context
+
+
+class GameSetStartView(View):
+    def post(self, request: HttpRequest, game_set_id: int) -> HttpResponse:
+        game_set = get_object_or_404(
+            GameSet,
+            pk=game_set_id,
+            status=GameSet.Status.APPROVED,
+        )
+        form = NicknameForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, '닉네임을 다시 확인해주세요.')
+            return redirect('games:game_set_detail', game_set_id=game_set.pk)
+        if not request.user.is_authenticated:
+            nickname = form.cleaned_data['nickname'] or '참여자'
+            request.session[f'game_set_nickname_{game_set.pk}'] = nickname
+
+        next_question = _next_unplayed_question(request, game_set)
+        if next_question is not None:
+            return redirect('games:detail', question_id=next_question.pk)
+
+        if game_set.questions.filter(is_active=True).exists():
+            return redirect('games:game_set_result', game_set_id=game_set.pk)
+
+        messages.info(request, '공개된 질문이 없습니다.')
+        return redirect('games:game_set_detail', game_set_id=game_set.pk)
+
+
+class GameSetResultView(TemplateView):
+    template_name = 'games/set_result.html'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        game_set = get_object_or_404(
+            GameSet.objects
+            .filter(status=GameSet.Status.APPROVED)
+            .select_related('category', 'creator'),
+            pk=self.kwargs['game_set_id'],
+        )
+        questions = list(
+            _public_questions()
+            .filter(game_set=game_set)
+            .order_by('pk')
+        )
+        session_key = self.request.session.session_key
+        votes = []
+        if session_key:
+            votes = list(
+                Vote.objects
+                .filter(
+                    session_key=session_key,
+                    question__in=questions,
+                )
+                .select_related('question', 'choice')
+                .order_by('question_id')
+            )
+
+        if not questions or len(votes) != len(questions):
+            messages.info(self.request, '모든 질문에 답하면 유형 결과를 확인할 수 있어요.')
+            context['incomplete_redirect'] = True
+            context['game_set'] = game_set
+            return context
+
+        if self.request.user.is_authenticated:
+            display_name = self.request.user.username
+        else:
+            display_name = self.request.session.get(
+                f'game_set_nickname_{game_set.pk}',
+                '참여자',
+            )
+
+        context.update({
+            'game_set': game_set,
+            'set_result': build_game_set_result(
+                display_name=display_name,
+                votes=votes,
+            ),
+            'votes': votes,
+            'categories': Category.objects.all(),
+        })
+        return context
+
+    def render_to_response(
+        self,
+        context: dict[str, Any],
+        **response_kwargs: Any,
+    ) -> HttpResponse:
+        if context.get('incomplete_redirect'):
+            return redirect(
+                'games:game_set_detail',
+                game_set_id=context['game_set'].pk,
+            )
+        return super().render_to_response(context, **response_kwargs)

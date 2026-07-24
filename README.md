@@ -1,6 +1,6 @@
-# ⚡ 밸런스게임 웹사이트
+# ⚡ 양자택일
 
-두 가지 선택지 중 하나를 고르는 밸런스게임 웹서비스입니다. 단순 투표 비율 집계를 넘어, 선택 결과를 기반으로 **등급 판정**과 **재미있는 결과 해석**을 제공합니다.
+두 가지 선택지 중 하나를 고르는 선택형 웹서비스입니다. 공식 콘텐츠와 사용자 제작 콘텐츠를 주제별 7~10문항으로 플레이하고, 완료 후 **이름이 포함된 선택 유형·코믹 해석·패턴 분석**을 확인할 수 있습니다.
 
 > 이 결과는 재미를 위한 콘텐츠이며 실제 성격이나 심리 상태를 진단하지 않습니다.
 
@@ -21,13 +21,15 @@
 | Python | 3.9 | **3.12** |
 | Django | 4.2 | **5.2 LTS** |
 | 프론트엔드 | 순수 CSS (자체 구현) | **Bootstrap 5** |
-| 모델 | BalanceGame + Choice (2개) | **Category, Question, Choice, Vote, ResultTemplate** |
-| 결과 | 투표 비율만 표시 | **7단계 등급 + 해석 문구 + 키워드 + 공유 문구** |
+| 모델 | BalanceGame + Choice (2개) | **Category, GameSet, Question, Choice, Vote, ResultTemplate** |
+| 결과 | 투표 비율만 표시 | **문항별 7단계 등급 + 주제별 선택 유형·코믹/패턴 분석** |
 | 플레이 흐름 | 랜덤 질문 반복 가능 | **완료 질문 제외 + 진행률 + 선택 기록** |
 | 사용자 기능 | 없음 | **회원가입·로그인 + 7~10문항 게임 제작** |
 | 콘텐츠 안전 | 없음 | **금칙어 차단 + 근거 URL + 관리자 사전 승인** |
 | 환경변수 | 하드코딩 | **django-environ (.env)** |
-| 테스트 | 없음 | **37개 테스트 (100% 통과)** |
+| 공식 콘텐츠 | 질문 단위 샘플 | **7개 주제 × 각 7문항** |
+| 진입 경험 | 메인으로 즉시 이동 | **전체 화면 소개 + 클릭 전환 애니메이션** |
+| 테스트 | 없음 | **44개 테스트 (100% 통과)** |
 
 ### 핵심 설계 결정
 
@@ -93,6 +95,15 @@ with transaction.atomic():
 - 관리자 승인 시에만 세트의 문항을 일괄 활성화
 - 관리자 반려 시 문항 비공개 유지 및 반려 사유 기록
 
+#### 7. 주제 완료 유형 분석
+
+주제의 모든 문항을 완료하면 A/B 응답 분포와 일관성을 기준으로 선택 유형을 제공합니다.
+
+- `000님은 ??유형입니다` 형식의 개인화된 결과
+- 웃음 중심의 코믹 해석과 수치 중심의 패턴 분석 탭
+- A/B 선택 횟수·비율, 선택 집중도, 키워드 제공
+- 실제 성격이나 심리 진단이 아니라는 안내를 결과에 명시
+
 ---
 
 ## 프로젝트 구조
@@ -110,17 +121,19 @@ game/
 ├── 양자택일/                     # 메인 앱
 │   ├── models.py                # 게임·투표·사용자 제작 세트 모델
 │   ├── moderation.py            # 금칙어 및 검증 필요 표현 검사
+│   ├── official_content.py      # 7개 공식 주제의 추가 문항
 │   ├── services.py              # 등급 판정, 결과 생성, 투표 처리
 │   ├── forms.py                 # 투표·회원·게임 제작 폼
 │   ├── views.py                 # 플레이·회원·제작·기록 뷰
 │   ├── urls.py                  # 서비스 URL 패턴
 │   ├── admin.py                 # 관리자 인터페이스
-│   ├── tests.py                 # 37개 자동 테스트
+│   ├── tests.py                 # 44개 자동 테스트
 │   └── management/
 │       └── commands/
 │           └── seed_data.py     # 샘플 데이터 생성 커맨드
 ├── templates/
 │   ├── base.html                # Bootstrap 5 공통 레이아웃
+│   ├── welcome.html             # 클릭 전환 애니메이션 인트로
 │   ├── index.html               # 메인 페이지
 │   ├── games/
 │   │   ├── list.html            # 게임 목록
@@ -129,7 +142,8 @@ game/
 │   │   ├── progress.html        # 내 플레이 진행률·최근 선택
 │   │   ├── create.html          # 7~10문항 게임 제작
 │   │   ├── my_creations.html    # 내 제출·검수 현황
-│   │   └── set_detail.html      # 사용자 제작 주제 플레이
+│   │   ├── set_detail.html      # 공식·사용자 제작 주제 플레이
+│   │   └── set_result.html      # 주제 완료 유형·코믹·패턴 분석
 │   ├── registration/
 │   │   ├── login.html           # 로그인
 │   │   └── signup.html          # 회원가입
@@ -137,8 +151,8 @@ game/
 │       └── list.html            # 카테고리별 목록
 └── static/
     ├── css/main.css             # 커스텀 스타일 (희귀도 배지 등)
-    ├── images/og-balance-game.png # SNS 링크 미리보기 이미지
-    └── js/main.js               # 클립보드 복사
+    ├── images/og-yangjatagil.png # 양자택일 SNS 링크 미리보기 이미지
+    └── js/main.js               # 인트로·분석 탭·클립보드 상호작용
 ```
 
 ---
@@ -147,7 +161,8 @@ game/
 
 | URL | 뷰 | 설명 |
 |-----|----|------|
-| `/` | `IndexView` | 메인 페이지 |
+| `/` | `WelcomeView` | 클릭 전환 애니메이션 인트로 |
+| `/home/` | `IndexView` | 메인 페이지 |
 | `/games/` | `GameListView` | 전체 게임 목록 |
 | `/games/random/` | `RandomGameView` | 랜덤 게임 이동 |
 | `/games/<id>/` | `QuestionDetailView` | 질문 상세 + 투표 |
@@ -156,7 +171,9 @@ game/
 | `/my-results/` | `ProgressView` | 내 진행률·카테고리별 현황·최근 선택 |
 | `/games/create/` | `GameSetCreateView` | 7~10문항 사용자 게임 제작 |
 | `/my-games/` | `MyGameSetListView` | 내 제출 및 검수 상태 |
-| `/topics/<id>/` | `PublicGameSetDetailView` | 승인된 사용자 제작 주제 플레이 |
+| `/topics/<id>/` | `PublicGameSetDetailView` | 승인된 공식·사용자 제작 주제 플레이 |
+| `/topics/<id>/start/` | `GameSetStartView` | 닉네임 저장 후 주제 시작 |
+| `/topics/<id>/result/` | `GameSetResultView` | 주제 완료 유형 분석 |
 | `/accounts/signup/` | `SignupView` | 회원가입 |
 | `/accounts/login/` | `LoginView` | 로그인 |
 | `/accounts/logout/` | `LogoutView` | 로그아웃 (POST) |
@@ -177,6 +194,13 @@ game/
 - 공유 문구 + 클립보드 복사 버튼
 - 다음 랜덤 게임 버튼
 
+주제의 7~10개 문항을 모두 완료한 경우에는 다음 항목도 제공합니다.
+
+- `닉네임님은 선택 유형입니다` 결과
+- 코믹 해석 / 선택 패턴 분석 전환 탭
+- A/B 선택 분포와 선택 집중도
+- 전체 답변 모아보기
+
 ---
 
 ## 실행 방법
@@ -192,7 +216,7 @@ cp .env.example .env
 # 3. DB 마이그레이션
 python manage.py migrate
 
-# 4. 샘플 데이터 생성 (17개 질문, 21개 결과 템플릿)
+# 4. 공식 데이터 생성 (7개 주제 × 7문항, 21개 결과 템플릿)
 python manage.py seed_data
 
 # 5. 관리자 계정 생성 (선택)
@@ -212,7 +236,7 @@ python manage.py runserver
 python manage.py test 양자택일 --verbosity=2
 ```
 
-37개 테스트 항목:
+44개 자동 테스트는 다음 핵심 영역을 검증합니다.
 
 1. 투표 저장 테스트
 2. 중복투표 방지 테스트 (애플리케이션 레벨)
@@ -241,6 +265,12 @@ python manage.py test 양자택일 --verbosity=2
 25. 사용자별 제작 목록 접근 범위 테스트
 26. 검수 대기 콘텐츠 비공개 테스트
 27. 관리자 승인·반려 및 공개 전환 테스트
+28. 양자택일 인트로·메인 분리 테스트
+29. 공식 데이터 7개 주제 × 7문항 및 재실행 안전성 테스트
+30. 닉네임 기반 주제 유형 결과 테스트
+31. 코믹 해석·패턴 분석 렌더링 테스트
+32. 미완료 주제 결과 접근 차단 테스트
+33. 마지막 응답 후 주제 결과 자동 이동 테스트
 
 ---
 

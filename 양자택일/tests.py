@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from io import StringIO
+
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import Client, TestCase
@@ -18,6 +21,7 @@ from .models import (
 from .services import (
     ResultData,
     TemplateResultGenerator,
+    build_game_set_result,
     build_result,
     get_grade,
     process_vote,
@@ -708,3 +712,138 @@ class UserGameModerationTest(TestCase):
             '성인·음란 콘텐츠는 제출할 수 없습니다.',
         ):
             self.game_set.approve(self.reviewer)
+
+
+# ---------------------------------------------------------------------------
+# 13. 양자택일 인트로 / 공식 7문항 / 주제 유형 결과
+# ---------------------------------------------------------------------------
+
+class WelcomeFlowTest(TestCase):
+    def test_root_shows_clickable_yangjatagil_intro(self) -> None:
+        response = self.client.get(reverse('games:welcome'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '양자택일')
+        self.assertContains(response, '아무 곳이나 눌러 시작')
+        self.assertContains(response, reverse('games:index'))
+
+    def test_main_page_is_available_after_intro(self) -> None:
+        response = self.client.get(reverse('games:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '양자택일')
+
+
+class OfficialContentSeedTest(TestCase):
+    def test_seed_creates_seven_official_topics_with_seven_questions_each(self) -> None:
+        output = StringIO()
+        call_command('seed_data', stdout=output)
+        call_command('seed_data', stdout=output)
+
+        official_sets = GameSet.objects.filter(is_official=True)
+        self.assertEqual(official_sets.count(), 7)
+        self.assertEqual(Question.objects.count(), 49)
+        self.assertEqual(Choice.objects.count(), 98)
+        self.assertFalse(Question.objects.filter(category__isnull=True).exists())
+        for game_set in official_sets:
+            with self.subTest(game_set=game_set.title):
+                self.assertEqual(game_set.status, GameSet.Status.APPROVED)
+                self.assertEqual(game_set.questions.filter(is_active=True).count(), 7)
+                self.assertIsNone(game_set.creator)
+
+
+class GameSetResultTest(TestCase):
+    def setUp(self) -> None:
+        self.creator = get_user_model().objects.create_user(
+            username='maker',
+            password='A-strong-password-2026',
+        )
+        self.reviewer = get_user_model().objects.create_superuser(
+            username='reviewer',
+            email='reviewer@example.com',
+            password='A-strong-password-2026',
+        )
+        self.category = Category.objects.create(name='결과', slug='set-result')
+        self.game_set = make_user_game_set(self.creator, self.category)
+        self.game_set.approve(self.reviewer)
+
+        session = self.client.session
+        session.save()
+        self.session_key = session.session_key
+
+    def test_all_a_answers_create_confident_type(self) -> None:
+        votes = []
+        for question in self.game_set.questions.order_by('pk'):
+            vote, _ = process_vote(
+                question,
+                question.choices.get(code=Choice.Code.A),
+                session_key=self.session_key,
+            )
+            votes.append(vote)
+
+        result = build_game_set_result(display_name='테스터', votes=votes)
+
+        self.assertEqual(result.type_name, '확신의 직진 대장형')
+        self.assertEqual(result.a_count, 7)
+        self.assertEqual(result.consistency_score, 100)
+        self.assertIn('실제 성격이나 심리 특성을 진단하는 지표는 아닙니다', result.professional_analysis)
+
+    def test_completed_topic_shows_named_comic_and_pattern_analysis(self) -> None:
+        self.client.post(
+            reverse('games:game_set_start', kwargs={'game_set_id': self.game_set.pk}),
+            {'nickname': '테스터'},
+        )
+        for question in self.game_set.questions.order_by('pk'):
+            process_vote(
+                question,
+                question.choices.get(code=Choice.Code.A),
+                session_key=self.session_key,
+            )
+
+        response = self.client.get(
+            reverse('games:game_set_result', kwargs={'game_set_id': self.game_set.pk}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '테스터님은')
+        self.assertContains(response, '확신의 직진 대장형')
+        self.assertContains(response, '코믹 해석')
+        self.assertContains(response, '패턴 분석')
+
+    def test_incomplete_topic_redirects_to_topic_detail(self) -> None:
+        response = self.client.get(
+            reverse('games:game_set_result', kwargs={'game_set_id': self.game_set.pk}),
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                'games:game_set_detail',
+                kwargs={'game_set_id': self.game_set.pk},
+            ),
+            fetch_redirect_response=False,
+        )
+
+    def test_last_vote_redirects_to_topic_type_result(self) -> None:
+        questions = list(self.game_set.questions.order_by('pk'))
+        for question in questions[:-1]:
+            process_vote(
+                question,
+                question.choices.get(code=Choice.Code.A),
+                session_key=self.session_key,
+            )
+        last_question = questions[-1]
+
+        response = self.client.post(
+            reverse('games:vote', kwargs={'question_id': last_question.pk}),
+            {'choice': last_question.choices.get(code=Choice.Code.B).pk},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse(
+                'games:game_set_result',
+                kwargs={'game_set_id': self.game_set.pk},
+            ),
+            fetch_redirect_response=False,
+        )

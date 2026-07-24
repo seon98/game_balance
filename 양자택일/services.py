@@ -83,6 +83,22 @@ class ResultData:
     question_title: str
 
 
+@dataclass
+class GameSetResultData:
+    display_name: str
+    type_name: str
+    type_summary: str
+    comic_analysis: str
+    professional_analysis: str
+    keywords: list[str]
+    total_questions: int
+    a_count: int
+    b_count: int
+    a_percentage: float
+    b_percentage: float
+    consistency_score: int
+
+
 # ---------------------------------------------------------------------------
 # 기본 결과 문구 (DB 템플릿 없을 때 폴백)
 # ---------------------------------------------------------------------------
@@ -324,3 +340,81 @@ def build_result(
     grade = get_grade(percentage)
 
     return generator.generate(question, my_choice, percentage, total, grade)
+
+
+def build_game_set_result(
+    *,
+    display_name: str,
+    votes: list[Vote],
+) -> GameSetResultData:
+    total = len(votes)
+    if total == 0:
+        raise ValueError('세트 결과를 만들려면 한 개 이상의 답변이 필요합니다.')
+
+    a_count = sum(vote.choice.code == Choice.Code.A for vote in votes)
+    b_count = total - a_count
+    a_percentage = round(a_count / total * 100, 1)
+    b_percentage = round(b_count / total * 100, 1)
+    dominant_count = max(a_count, b_count)
+    dominant_code = 'A' if a_count >= b_count else 'B'
+    consistency_score = round(abs(a_count - b_count) / total * 100)
+
+    if dominant_count == total:
+        type_name = '확신의 직진 대장형'
+        type_summary = f'{dominant_code} 선택만으로 길을 만든 흔들림 없는 선택자'
+        comic_analysis = (
+            '메뉴판을 펼치기 전에 주문이 끝나는 타입입니다. '
+            '동전이 앞면으로 떨어지든 옆면으로 서든 이미 마음속 답은 정해져 있어요. '
+            '친구들이 “진짜 그걸로 괜찮아?”라고 물으면 왜 아직 고민하는지 궁금해합니다.'
+        )
+        keywords = ['확신', '직진', '결단력']
+    elif dominant_count / total >= 0.7:
+        type_name = '취향 선명 선택 대장형'
+        type_summary = f'{dominant_code} 쪽 기준이 분명한 빠른 결정의 소유자'
+        comic_analysis = (
+            '단체 채팅방 투표가 열리면 가장 먼저 누르고 가장 늦게까지 의견을 지키는 편입니다. '
+            '가끔 반대편을 고른 날에는 스스로도 “오늘의 나, 제법 반전인데?”라고 놀랍니다.'
+        )
+        keywords = ['선명한 취향', '추진력', '일관성']
+    elif abs(a_count - b_count) <= 1:
+        type_name = '고민도 능력인 균형 설계자형'
+        type_summary = '두 선택의 장단점을 끝까지 살피는 균형 감각의 소유자'
+        comic_analysis = (
+            '동전을 던져놓고 공중에 뜬 순간 원하는 답을 깨닫는 타입입니다. '
+            'A를 누르면 B가 아쉽고 B를 누르면 A가 생각나지만, '
+            '양쪽 사정을 잘 이해해서 친구들의 밸런스게임 재판관으로 자주 소환됩니다.'
+        )
+        keywords = ['균형감', '공감', '신중함']
+    else:
+        type_name = '반전 카드를 품은 유연한 탐험가형'
+        type_summary = f'{dominant_code}를 선호하면서도 상황에 따라 방향을 바꾸는 선택자'
+        comic_analysis = (
+            '한쪽 주머니에는 소신, 다른 주머니에는 반전 카드를 넣고 다닙니다. '
+            '주변에서는 선택을 예측했다고 자신하지만 결정적인 순간에 다른 버튼을 눌러 모두를 당황하게 만들어요.'
+        )
+        keywords = ['유연함', '탐색', '반전 매력']
+
+    professional_analysis = (
+        f'총 {total}개 문항에서 A를 {a_count}회({a_percentage}%), '
+        f'B를 {b_count}회({b_percentage}%) 선택했습니다. '
+        f'한 방향으로 선택이 모인 정도는 {consistency_score}%입니다. '
+        '이 수치는 해당 주제 안에서 나타난 선택 패턴의 일관성을 보여주며, '
+        '실제 성격이나 심리 특성을 진단하는 지표는 아닙니다. '
+        '비율이 균형에 가까울수록 상황별 조건을 폭넓게 고려한 패턴으로, '
+        '한쪽에 가까울수록 비교적 분명한 우선순위를 적용한 패턴으로 해석할 수 있습니다.'
+    )
+
+    return GameSetResultData(
+        display_name=display_name,
+        type_name=type_name,
+        type_summary=type_summary,
+        comic_analysis=comic_analysis,
+        professional_analysis=professional_analysis,
+        keywords=keywords,
+        total_questions=total,
+        a_count=a_count,
+        b_count=b_count,
+        a_percentage=a_percentage,
+        b_percentage=b_percentage,
+        consistency_score=consistency_score,
+    )

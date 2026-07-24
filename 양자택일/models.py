@@ -48,9 +48,12 @@ class GameSet(models.Model):
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         related_name='created_game_sets',
         verbose_name='제작자',
     )
+    is_official = models.BooleanField(default=False, verbose_name='공식 콘텐츠')
     category = models.ForeignKey(
         Category,
         on_delete=models.PROTECT,
@@ -90,8 +93,8 @@ class GameSet(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name='수정일')
 
     class Meta:
-        verbose_name = '사용자 제작 게임 세트'
-        verbose_name_plural = '사용자 제작 게임 세트 목록'
+        verbose_name = '게임 세트'
+        verbose_name_plural = '게임 세트 목록'
         ordering = ['-created_at']
 
     def __str__(self) -> str:
@@ -110,12 +113,13 @@ class GameSet(models.Model):
 
         if self.content_basis == self.ContentBasis.SOURCED and not self.reference_url:
             errors['reference_url'] = '사실·정보형 콘텐츠는 검증 자료 URL을 입력해야 합니다.'
-
         if errors:
             raise ValidationError(errors)
 
     def validate_submission(self) -> None:
         self.full_clean()
+        if not self.is_official and not self.creator_id:
+            raise ValidationError('사용자 제작 게임에는 제작자가 필요합니다.')
         if not self.pk:
             raise ValidationError('저장된 게임 세트만 검수할 수 있습니다.')
 

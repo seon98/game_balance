@@ -7,7 +7,8 @@ from .forms import StyledAuthenticationForm
 app_name = 'games'
 
 urlpatterns = [
-    path('', views.IndexView.as_view(), name='index'),
+    path('', views.WelcomeView.as_view(), name='welcome'),
+    path('home/', views.IndexView.as_view(), name='index'),
     path('games/', views.GameListView.as_view(), name='list'),
     path('games/random/', views.RandomGameView.as_view(), name='random'),
     path('games/<int:question_id>/', views.QuestionDetailView.as_view(), name='detail'),
@@ -20,6 +21,16 @@ urlpatterns = [
         'topics/<int:game_set_id>/',
         views.PublicGameSetDetailView.as_view(),
         name='game_set_detail',
+    ),
+    path(
+        'topics/<int:game_set_id>/start/',
+        views.GameSetStartView.as_view(),
+        name='game_set_start',
+    ),
+    path(
+        'topics/<int:game_set_id>/result/',
+        views.GameSetResultView.as_view(),
+        name='game_set_result',
     ),
     path('accounts/signup/', views.SignupView.as_view(), name='signup'),
     path(

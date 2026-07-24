@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ category.name }} - 밸런스게임{% endblock %}
+{% block title %}{{ category.name }} - 양자택일{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -34,45 +34,11 @@
   </div>
   {% endif %}
 
-  {% if questions %}
+  {% if game_sets %}
   <div class="row g-4">
-    {% for question in questions %}
+    {% for game_set in game_sets %}
     <div class="col-sm-6 col-lg-4">
-      <a href="{% url 'games:detail' question.id %}" class="text-decoration-none">
-        <div class="card game-card h-100 shadow-sm border-0">
-          <div class="card-body">
-            {% if question.id in completed_question_ids %}
-            <div class="text-end mb-2">
-              <span class="badge bg-success-subtle text-success">
-                <i class="bi bi-check-circle-fill me-1"></i>완료
-              </span>
-            </div>
-            {% endif %}
-            <h5 class="card-title fw-bold text-dark mb-3" style="font-size:0.95rem; line-height:1.4">
-              {{ question.title }}
-            </h5>
-            <div class="d-flex gap-2 align-items-center">
-              {% for choice in question.choices.all %}
-                {% if choice.code == 'A' %}
-                <span class="choice-pill choice-a flex-fill text-center small">{{ choice.text|truncatechars:18 }}</span>
-                {% endif %}
-              {% endfor %}
-              <span class="vs-badge fw-black text-muted small">VS</span>
-              {% for choice in question.choices.all %}
-                {% if choice.code == 'B' %}
-                <span class="choice-pill choice-b flex-fill text-center small">{{ choice.text|truncatechars:18 }}</span>
-                {% endif %}
-              {% endfor %}
-            </div>
-          </div>
-          <div class="card-footer bg-transparent border-0 pt-0 d-flex justify-content-between gap-2">
-            <small class="text-muted"><i class="bi bi-people me-1"></i>{{ question.total_votes }}명 참여</small>
-            {% if question.game_set %}
-            <small class="text-success"><i class="bi bi-person-check me-1"></i>{{ question.game_set.creator.username }} 제작</small>
-            {% endif %}
-          </div>
-        </div>
-      </a>
+      {% include 'games/_set_card.html' %}
     </div>
     {% endfor %}
   </div>

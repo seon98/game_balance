@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ game_set.title }} - 밸런스게임{% endblock %}
+{% block title %}{{ game_set.title }} - 양자택일{% endblock %}
 
 {% block content %}
 <section class="set-hero py-5">
@@ -14,7 +14,10 @@
         <h1 class="display-6 fw-black mb-3">{{ game_set.title }}</h1>
         <p class="lead text-muted mb-4">{{ game_set.description|default:'두 가지 선택 사이에서 나의 취향을 확인해보세요.' }}</p>
         <div class="d-flex flex-wrap align-items-center gap-3 small text-muted">
-          <span><i class="bi bi-person-circle me-1"></i>{{ game_set.creator.username }} 제작</span>
+          <span>
+            <i class="bi bi-person-circle me-1"></i>
+            {% if game_set.is_official %}양자택일 공식{% else %}{{ game_set.creator.username }} 제작{% endif %}
+          </span>
           <span><i class="bi bi-ui-checks-grid me-1"></i>{{ questions|length }}문항</span>
           <span><i class="bi bi-calendar3 me-1"></i>{{ game_set.created_at|date:'Y.m.d' }}</span>
           {% if game_set.content_basis == 'SOURCED' and game_set.reference_url %}
@@ -46,13 +49,20 @@
                 </div>
               </div>
               {% if next_question %}
-              <a href="{% url 'games:detail' next_question.id %}" class="btn btn-warning fw-bold px-4 flex-shrink-0">
-                <i class="bi bi-play-fill me-1"></i>{% if completed_count %}이어서 하기{% else %}시작하기{% endif %}
-              </a>
+              <form method="post" action="{% url 'games:game_set_start' game_set.id %}" class="set-start-form flex-shrink-0">
+                {% csrf_token %}
+                {% if not user.is_authenticated %}
+                <label for="{{ nickname_form.nickname.id_for_label }}" class="form-label small fw-bold">{{ nickname_form.nickname.label }}</label>
+                {{ nickname_form.nickname }}
+                {% endif %}
+                <button type="submit" class="btn btn-warning fw-bold px-4 mt-2 w-100">
+                  <i class="bi bi-play-fill me-1"></i>{% if completed_count %}이어서 하기{% else %}시작하기{% endif %}
+                </button>
+              </form>
               {% else %}
-              <span class="badge bg-success-subtle text-success fs-6 px-3 py-2">
-                <i class="bi bi-trophy-fill me-1"></i>모두 완료
-              </span>
+              <a href="{% url 'games:game_set_result' game_set.id %}" class="btn btn-success fw-bold px-4">
+                <i class="bi bi-trophy-fill me-1"></i>유형 결과 보기
+              </a>
               {% endif %}
             </div>
           </div>

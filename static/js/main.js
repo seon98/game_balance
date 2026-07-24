@@ -149,3 +149,43 @@ function initGameCreator() {
 }
 
 document.addEventListener('DOMContentLoaded', initGameCreator);
+
+function initWelcome() {
+  const enter = document.getElementById('welcomeEnter');
+  if (!enter) return;
+
+  let entering = false;
+  enter.addEventListener('click', function (event) {
+    event.preventDefault();
+    if (entering) return;
+    entering = true;
+    document.body.classList.add('is-entering');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.setTimeout(function () {
+      window.location.assign(enter.dataset.enterUrl);
+    }, reduceMotion ? 80 : 950);
+  });
+}
+
+function initAnalysisTabs() {
+  const tabs = document.querySelectorAll('[data-analysis-tab]');
+  const panels = document.querySelectorAll('[data-analysis-panel]');
+  if (!tabs.length || !panels.length) return;
+
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      const target = tab.dataset.analysisTab;
+      tabs.forEach(function (candidate) {
+        const active = candidate === tab;
+        candidate.classList.toggle('active', active);
+        candidate.setAttribute('aria-selected', String(active));
+      });
+      panels.forEach(function (panel) {
+        panel.hidden = panel.dataset.analysisPanel !== target;
+      });
+    });
+  });
+}
+
+document.addEventListener('DOMContentLoaded', initWelcome);
+document.addEventListener('DOMContentLoaded', initAnalysisTabs);

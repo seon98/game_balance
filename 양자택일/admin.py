@@ -53,6 +53,7 @@ class QuestionAdmin(admin.ModelAdmin):
 class GameSetAdmin(admin.ModelAdmin):
     list_display = [
         'title',
+        'is_official',
         'creator',
         'category',
         'question_count',
@@ -60,10 +61,11 @@ class GameSetAdmin(admin.ModelAdmin):
         'status',
         'created_at',
     ]
-    list_filter = ['status', 'content_basis', 'category', 'created_at']
+    list_filter = ['is_official', 'status', 'content_basis', 'category', 'created_at']
     search_fields = ['title', 'description', 'creator__username', 'creator__email']
     readonly_fields = [
         'creator',
+        'is_official',
         'category',
         'status',
         'created_at',
@@ -74,7 +76,7 @@ class GameSetAdmin(admin.ModelAdmin):
     ]
     actions = ['approve_selected', 'reject_selected']
     fieldsets = [
-        ('제출 정보', {'fields': ['creator', 'category', 'title', 'description']}),
+        ('제출 정보', {'fields': ['is_official', 'creator', 'category', 'title', 'description']}),
         ('제출 문항', {'fields': ['questions_preview']}),
         ('근거와 검수', {
             'fields': [

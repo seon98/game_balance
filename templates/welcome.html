@@ -1,0 +1,51 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="두 가지 선택 사이에서 나를 발견하는 선택형 콘텐츠, 양자택일">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="양자택일">
+  <meta property="og:title" content="양자택일 - 선택이 모이면 내가 보인다">
+  <meta property="og:description" content="사소한 취향부터 진지한 가치관까지, 두 가지 선택으로 나를 발견해보세요.">
+  <meta property="og:url" content="{{ request.build_absolute_uri }}">
+  <meta property="og:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/og-yangjatagil.png' %}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="{{ request.scheme }}://{{ request.get_host }}{% static 'images/og-yangjatagil.png' %}">
+  <title>양자택일 - 선택이 모이면 내가 보인다</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="{% static 'css/main.css' %}" rel="stylesheet">
+</head>
+<body class="welcome-page">
+  <a
+    href="{% url 'games:index' %}"
+    class="welcome-enter"
+    id="welcomeEnter"
+    data-enter-url="{% url 'games:index' %}"
+    aria-label="양자택일 메인 페이지로 들어가기"
+  >
+    <span class="welcome-panel welcome-panel-a" aria-hidden="true">
+      <span class="welcome-letter">A</span>
+    </span>
+    <span class="welcome-panel welcome-panel-b" aria-hidden="true">
+      <span class="welcome-letter">B</span>
+    </span>
+    <span class="welcome-flash" aria-hidden="true"></span>
+    <span class="welcome-content">
+      <span class="welcome-kicker">CHOOSE · DISCOVER · LAUGH</span>
+      <strong class="welcome-title">양자택일</strong>
+      <span class="welcome-copy">
+        사소한 취향부터 진지한 가치관까지.<br>
+        두 가지 선택이 모이면 새로운 내가 보입니다.
+      </span>
+      <span class="welcome-prompt">
+        <i class="bi bi-hand-index-thumb"></i>
+        아무 곳이나 눌러 시작
+      </span>
+    </span>
+    <span class="welcome-vs" aria-hidden="true">VS</span>
+  </a>
+  <script src="{% static 'js/main.js' %}"></script>
+</body>
+</html>

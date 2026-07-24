@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}{{ question.title }} - 밸런스게임{% endblock %}
+{% block title %}{{ question.title }} - 양자택일{% endblock %}
 
 {% block content %}
 <div class="container py-5">
@@ -19,7 +19,8 @@
         {% endif %}
         {% if question.game_set %}
         <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="badge bg-success mb-3 text-decoration-none">
-          <i class="bi bi-person-check me-1"></i>{{ question.game_set.creator.username }} 제작
+          <i class="bi bi-person-check me-1"></i>
+          {% if question.game_set.is_official %}양자택일 공식{% else %}{{ question.game_set.creator.username }} 제작{% endif %}
         </a>
         <p class="small text-muted mb-2">
           <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="text-muted">{{ question.game_set.title }}</a>

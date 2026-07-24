@@ -1,0 +1,39 @@
+<a href="{% url 'games:game_set_detail' game_set.id %}" class="text-decoration-none">
+  <article class="card game-set-card h-100 shadow-sm border-0">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+        <span class="badge bg-primary bg-opacity-10 text-primary">{{ game_set.category.name }}</span>
+        {% if game_set.completion_percentage == 100 %}
+        <span class="badge bg-success-subtle text-success"><i class="bi bi-trophy-fill me-1"></i>완료</span>
+        {% elif game_set.is_official %}
+        <span class="badge bg-warning-subtle text-warning-emphasis"><i class="bi bi-patch-check-fill me-1"></i>공식</span>
+        {% else %}
+        <span class="badge bg-success-subtle text-success"><i class="bi bi-person-check me-1"></i>사용자 제작</span>
+        {% endif %}
+      </div>
+      <h2 class="h5 fw-black text-dark mb-2">{{ game_set.title }}</h2>
+      <p class="small text-muted game-set-description mb-4">
+        {{ game_set.description|default:'두 가지 선택을 따라가며 나만의 유형을 확인해보세요.'|truncatechars:90 }}
+      </p>
+
+      <div class="set-card-questions mb-4">
+        {% for question in game_set.public_questions|slice:':2' %}
+        <p class="small text-dark mb-2">
+          <span class="text-primary fw-bold">{{ forloop.counter|stringformat:'02d' }}</span>
+          {{ question.title|truncatechars:42 }}
+        </p>
+        {% endfor %}
+      </div>
+
+      <div class="d-flex justify-content-between small text-muted mb-2">
+        <span>{{ game_set.completed_count }}/{{ game_set.question_count }} 완료</span>
+        <span>{% if game_set.is_official %}양자택일 공식{% else %}{{ game_set.creator.username }} 제작{% endif %}</span>
+      </div>
+      <div class="progress" role="progressbar" aria-label="{{ game_set.title }} 진행률"
+           aria-valuenow="{{ game_set.completion_percentage }}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar {% if game_set.completion_percentage == 100 %}bg-success{% else %}bg-warning{% endif %}"
+             style="width:{{ game_set.completion_percentage }}%"></div>
+      </div>
+    </div>
+  </article>
+</a>
