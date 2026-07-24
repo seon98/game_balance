@@ -7,6 +7,12 @@
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-8">
+        {% if security_refreshed %}
+        <div class="alert alert-info rounded-4 mb-4" role="alert">
+          <i class="bi bi-shield-check me-2"></i>
+          안전한 연결 토큰을 새로 발급했습니다. 이 문항을 다시 선택해주세요.
+        </div>
+        {% endif %}
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
           <a href="{% url 'games:index' %}#quick-play" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-search me-1"></i>새 키워드

@@ -984,6 +984,71 @@ class InstantGameFlowTest(TestCase):
         self.assertFalse(Question.objects.exists())
         self.assertFalse(Vote.objects.exists())
 
+    def test_instant_game_answer_accepts_browser_csrf_cookie_flow(self) -> None:
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.get(reverse('games:index'))
+        csrf_token = csrf_client.cookies['csrftoken'].value
+        generated = csrf_client.post(
+            self.generate_url,
+            {'keywords': '여행'},
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+        csrf_client.get(generated['Location'])
+        current_token = csrf_client.cookies['csrftoken'].value
+
+        response = csrf_client.post(
+            reverse('games:instant_answer', kwargs={'question_number': 1}),
+            {'choice': 'A'},
+            HTTP_X_CSRFTOKEN=current_token,
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('games:instant_play', kwargs={'question_number': 2}),
+            fetch_redirect_response=False,
+        )
+
+    def test_expired_csrf_state_recovers_without_saving_the_answer(self) -> None:
+        self.generate_game()
+        game = self.client.session['instant_game']
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_session = csrf_client.session
+        csrf_session['instant_game'] = game
+        csrf_session.save()
+        answer_url = reverse(
+            'games:instant_answer',
+            kwargs={'question_number': 1},
+        )
+
+        rejected = csrf_client.post(answer_url, {'choice': 'A'})
+
+        recovery_url = (
+            reverse('games:instant_play', kwargs={'question_number': 1})
+            + '?security=refreshed'
+        )
+        self.assertRedirects(
+            rejected,
+            recovery_url,
+            fetch_redirect_response=False,
+        )
+        self.assertIsNone(
+            csrf_client.session['instant_game']['answers'][0],
+        )
+
+        recovery_page = csrf_client.get(recovery_url)
+        self.assertContains(recovery_page, '안전한 연결 토큰을 새로 발급했습니다.')
+        refreshed_token = csrf_client.cookies['csrftoken'].value
+        retried = csrf_client.post(
+            answer_url,
+            {'choice': 'A'},
+            HTTP_X_CSRFTOKEN=refreshed_token,
+        )
+        self.assertRedirects(
+            retried,
+            reverse('games:instant_play', kwargs={'question_number': 2}),
+            fetch_redirect_response=False,
+        )
+
 
 class UserGameModerationTest(TestCase):
     def setUp(self) -> None:

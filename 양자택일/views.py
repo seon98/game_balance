@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import re
 from typing import Any
 
 from django.conf import settings
@@ -14,9 +15,12 @@ from django.db import transaction
 from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse, reverse_lazy
+from django.utils.decorators import method_decorator
 from django.views import View
+from django.views.csrf import csrf_failure as default_csrf_failure
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.generic import CreateView, ListView, TemplateView
-from django.urls import reverse_lazy
 
 from .forms import (
     GameQuestionFormSet,
@@ -46,6 +50,24 @@ _INSTANT_GAME_SESSION_KEY = 'instant_game'
 # ---------------------------------------------------------------------------
 # 공통 헬퍼
 # ---------------------------------------------------------------------------
+
+def csrf_failure(
+    request: HttpRequest,
+    reason: str = '',
+) -> HttpResponse:
+    instant_answer = re.fullmatch(
+        r'/instant-game/(?P<question_number>\d+)/answer/',
+        request.path_info,
+    )
+    if request.method == 'POST' and instant_answer:
+        question_number = int(instant_answer.group('question_number'))
+        play_url = reverse(
+            'games:instant_play',
+            kwargs={'question_number': question_number},
+        )
+        return redirect(f'{play_url}?security=refreshed')
+    return default_csrf_failure(request, reason=reason)
+
 
 def _ensure_session(request: HttpRequest) -> str:
     if not request.session.session_key:
@@ -183,6 +205,7 @@ class WelcomeView(TemplateView):
     template_name = 'welcome.html'
 
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class IndexView(TemplateView):
     template_name = 'index.html'
 
@@ -281,6 +304,7 @@ class InstantGameGenerateView(View):
         return redirect('games:instant_play', question_number=1)
 
 
+@method_decorator(ensure_csrf_cookie, name='dispatch')
 class InstantGamePlayView(TemplateView):
     template_name = 'games/instant_play.html'
 
@@ -320,6 +344,9 @@ class InstantGamePlayView(TemplateView):
                 else None
             ),
             'categories': Category.objects.all(),
+            'security_refreshed': (
+                self.request.GET.get('security') == 'refreshed'
+            ),
         })
         return context
 
