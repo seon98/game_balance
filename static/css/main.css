@@ -518,6 +518,38 @@ body {
   font-size: 1.3rem;
 }
 
+.question-generator {
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  background:
+    radial-gradient(circle at 95% 0, rgba(255, 193, 7, 0.18), transparent 13rem),
+    #fffdf5;
+}
+
+.generator-safety-note {
+  align-self: flex-start;
+  padding: 0.45rem 0.75rem;
+  border-radius: 99px;
+  background: rgba(25, 135, 84, 0.1);
+  color: #146c43;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.generator-status {
+  color: #6c757d;
+}
+
+.generator-status.is-success {
+  color: #146c43;
+  font-weight: 700;
+}
+
+.generator-status.is-error {
+  color: #b02a37;
+  font-weight: 700;
+}
+
 .question-editor {
   padding: 1.25rem;
   border: 1px solid #e2e5ec;

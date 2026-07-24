@@ -6,9 +6,10 @@ from typing import Any
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, Prefetch, Q, QuerySet
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views import View
 from django.views.generic import CreateView, ListView, TemplateView
@@ -18,11 +19,13 @@ from .forms import (
     GameQuestionFormSet,
     GameSetForm,
     NicknameForm,
+    QuestionDraftGeneratorForm,
     SignupForm,
     VoteForm,
 )
 from .models import Category, Choice, GameSet, Question, ResultGrade, Vote
 from .moderation import requires_reference
+from .question_generator import generate_question_drafts
 from .services import (
     TemplateResultGenerator,
     build_game_set_result,
@@ -578,6 +581,34 @@ class GameSetCreateView(LoginRequiredMixin, View):
             'question_formset': question_formset,
             'categories': Category.objects.all(),
         })
+
+
+class QuestionDraftGenerateView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest) -> JsonResponse:
+        form = QuestionDraftGeneratorForm(request.POST)
+        if not form.is_valid():
+            errors = [
+                str(message)
+                for field_errors in form.errors.values()
+                for message in field_errors
+            ]
+            return JsonResponse(
+                {'error': ' '.join(errors) or '입력값을 다시 확인해주세요.'},
+                status=400,
+            )
+
+        try:
+            result = generate_question_drafts(
+                keywords=form.cleaned_data['keywords'],
+                count=form.cleaned_data['count'],
+                category_name=form.cleaned_data['category'].name,
+            )
+        except (ValidationError, ValueError):
+            return JsonResponse(
+                {'error': '안전한 문항을 만들지 못했습니다. 키워드를 바꿔 다시 시도해주세요.'},
+                status=400,
+            )
+        return JsonResponse(result)
 
 
 class MyGameSetListView(LoginRequiredMixin, ListView):

@@ -51,6 +51,10 @@ function initGameCreator() {
   const emptyTemplate = document.getElementById('emptyQuestionForm');
   const totalFormsInput = document.getElementById('id_questions-TOTAL_FORMS');
   const counter = document.getElementById('activeQuestionCount');
+  const generateButton = document.getElementById('generateQuestions');
+  const keywordInput = document.getElementById('draftKeywords');
+  const draftCountSelect = document.getElementById('draftCount');
+  const generatorStatus = document.getElementById('generatorStatus');
 
   if (!form || !formsContainer || !addButton || !emptyTemplate || !totalFormsInput) {
     return;
@@ -122,6 +126,120 @@ function initGameCreator() {
     if (editor) bindRemoveButton(editor);
     updateCreatorState();
   });
+
+  function setGeneratorStatus(message, type) {
+    if (!generatorStatus) return;
+    generatorStatus.textContent = message;
+    generatorStatus.classList.toggle('is-success', type === 'success');
+    generatorStatus.classList.toggle('is-error', type === 'error');
+  }
+
+  function ensureQuestionCount(targetCount) {
+    let active = activeEditors();
+    const deleted = Array.from(
+      formsContainer.querySelectorAll('[data-question-form]')
+    ).filter(isDeleted);
+
+    while (active.length < targetCount && deleted.length) {
+      const editor = deleted.shift();
+      const input = editor ? deleteInput(editor) : null;
+      if (input) input.value = '';
+      active = activeEditors();
+    }
+    while (active.length < targetCount) {
+      addButton.click();
+      active = activeEditors();
+    }
+    while (active.length > targetCount) {
+      const editor = active[active.length - 1];
+      const input = deleteInput(editor);
+      if (input) input.value = 'on';
+      active = activeEditors();
+    }
+    updateCreatorState();
+  }
+
+  function fillDrafts(result) {
+    const drafts = Array.isArray(result.drafts) ? result.drafts : [];
+    ensureQuestionCount(drafts.length);
+    activeEditors().forEach(function (editor, index) {
+      const draft = drafts[index];
+      if (!draft) return;
+      ['title', 'description', 'choice_a', 'choice_b'].forEach(function (fieldName) {
+        const field = editor.querySelector('[name$="-' + fieldName + '"]');
+        if (field) field.value = draft[fieldName] || '';
+      });
+    });
+
+    const titleInput = document.getElementById('id_title');
+    const descriptionInput = document.getElementById('id_description');
+    if (titleInput && !titleInput.value.trim()) {
+      titleInput.value = result.title_suggestion || '';
+    }
+    if (descriptionInput && !descriptionInput.value.trim()) {
+      descriptionInput.value = result.description_suggestion || '';
+    }
+  }
+
+  if (generateButton && keywordInput && draftCountSelect) {
+    generateButton.addEventListener('click', async function () {
+      const keywords = keywordInput.value.trim();
+      const categorySelect = document.getElementById('id_category');
+      const category = categorySelect ? categorySelect.value : '';
+      if (!keywords) {
+        setGeneratorStatus('먼저 한 개 이상의 키워드를 입력해주세요.', 'error');
+        keywordInput.focus();
+        return;
+      }
+      if (!category) {
+        setGeneratorStatus('주제 정보에서 카테고리를 먼저 선택해주세요.', 'error');
+        if (categorySelect) categorySelect.focus();
+        return;
+      }
+
+      const originalHtml = generateButton.innerHTML;
+      generateButton.disabled = true;
+      generateButton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>초안 만드는 중';
+      setGeneratorStatus('키워드를 바탕으로 안전한 질문 초안을 구성하고 있습니다.', '');
+
+      const csrfInput = form.querySelector('[name="csrfmiddlewaretoken"]');
+      const body = new URLSearchParams({
+        keywords: keywords,
+        count: draftCountSelect.value,
+        category: category
+      });
+
+      try {
+        const response = await fetch(generateButton.dataset.generateUrl, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+            'X-CSRFToken': csrfInput ? csrfInput.value : ''
+          },
+          body: body.toString()
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || '문항을 만들지 못했습니다.');
+        }
+        fillDrafts(result);
+        setGeneratorStatus(
+          result.drafts.length + '개 질문 초안을 채웠습니다. 내용을 확인하고 원하는 표현으로 수정해주세요.',
+          'success'
+        );
+      } catch (error) {
+        setGeneratorStatus(
+          error instanceof Error ? error.message : '문항을 만들지 못했습니다. 다시 시도해주세요.',
+          'error'
+        );
+      } finally {
+        generateButton.disabled = false;
+        generateButton.innerHTML = originalHtml;
+      }
+    });
+  }
 
   const basisSelect = document.getElementById('id_content_basis');
   const referenceGroup = document.getElementById('referenceUrlGroup');

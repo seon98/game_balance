@@ -16,6 +16,11 @@ urlpatterns = [
     path('games/<int:question_id>/result/', views.ResultView.as_view(), name='result'),
     path('my-results/', views.ProgressView.as_view(), name='progress'),
     path('games/create/', views.GameSetCreateView.as_view(), name='create'),
+    path(
+        'games/create/generate/',
+        views.QuestionDraftGenerateView.as_view(),
+        name='generate_drafts',
+    ),
     path('my-games/', views.MyGameSetListView.as_view(), name='my_creations'),
     path(
         'topics/<int:game_set_id>/',

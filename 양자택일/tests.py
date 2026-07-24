@@ -603,6 +603,108 @@ class UserGameCreationTest(TestCase):
         self.assertNotContains(response, other.title)
 
 
+class QuestionDraftGenerationTest(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username='draft-maker',
+            password='A-strong-password-2026',
+        )
+        self.category = Category.objects.create(name='여행', slug='travel')
+        self.url = reverse('games:generate_drafts')
+
+    def test_generator_requires_login(self) -> None:
+        response = self.client.post(self.url, {
+            'keywords': '여행, 친구',
+            'count': '7',
+            'category': str(self.category.pk),
+        })
+
+        self.assertRedirects(
+            response,
+            f"{reverse('games:login')}?next={self.url}",
+            fetch_redirect_response=False,
+        )
+
+    def test_create_page_shows_keyword_generator(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('games:create'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '키워드로 질문 만들기')
+        self.assertContains(response, self.url)
+
+    def test_keywords_generate_exact_safe_draft_count_without_saving(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.post(self.url, {
+            'keywords': '여행, 친구, 즉흥',
+            'count': '10',
+            'category': str(self.category.pk),
+        })
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(len(payload['drafts']), 10)
+        self.assertEqual(len({draft['title'] for draft in payload['drafts']}), 10)
+        for draft in payload['drafts']:
+            self.assertTrue(draft['title'])
+            self.assertTrue(draft['choice_a'])
+            self.assertTrue(draft['choice_b'])
+            self.assertNotEqual(draft['choice_a'], draft['choice_b'])
+        self.assertFalse(GameSet.objects.exists())
+        self.assertFalse(Question.objects.exists())
+
+    def test_generator_rejects_adult_or_unverified_keywords(self) -> None:
+        self.client.force_login(self.user)
+        adult_response = self.client.post(self.url, {
+            'keywords': '19금 여행',
+            'count': '7',
+            'category': str(self.category.pk),
+        })
+        claim_response = self.client.post(self.url, {
+            'keywords': '수익 보장',
+            'count': '7',
+            'category': str(self.category.pk),
+        })
+
+        self.assertEqual(adult_response.status_code, 400)
+        self.assertIn('성인·음란 콘텐츠', adult_response.json()['error'])
+        self.assertEqual(claim_response.status_code, 400)
+        self.assertIn('검증이 필요한 단정 표현', claim_response.json()['error'])
+
+    def test_generator_enforces_seven_to_ten_questions(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.post(self.url, {
+            'keywords': '여행',
+            'count': '6',
+            'category': str(self.category.pk),
+        })
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('7', response.json()['error'])
+
+    def test_generator_accepts_valid_csrf_protected_request(self) -> None:
+        csrf_client = Client(enforce_csrf_checks=True)
+        csrf_client.force_login(self.user)
+        csrf_client.get(reverse('games:create'))
+        csrf_token = csrf_client.cookies['csrftoken'].value
+
+        response = csrf_client.post(
+            self.url,
+            {
+                'keywords': '여행',
+                'count': '7',
+                'category': str(self.category.pk),
+            },
+            HTTP_X_CSRFTOKEN=csrf_token,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['drafts']), 7)
+
+
 class UserGameModerationTest(TestCase):
     def setUp(self) -> None:
         self.creator = get_user_model().objects.create_user(

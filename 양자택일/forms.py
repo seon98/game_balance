@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
+
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.forms import BaseFormSet, formset_factory
 
-from .models import Choice, GameSet, Question
+from .models import Category, Choice, GameSet, Question
 from .moderation import requires_reference, validate_safe_text
 
 
@@ -67,6 +69,45 @@ class NicknameForm(forms.Form):
         nickname = self.cleaned_data['nickname'].strip()
         validate_safe_text(nickname)
         return nickname
+
+
+class QuestionDraftGeneratorForm(forms.Form):
+    keywords = forms.CharField(max_length=160)
+    count = forms.IntegerField(
+        min_value=GameSet.MIN_QUESTIONS,
+        max_value=GameSet.MAX_QUESTIONS,
+    )
+    category = forms.ModelChoiceField(queryset=Category.objects.all())
+
+    def clean_keywords(self) -> list[str]:
+        raw_keywords = self.cleaned_data['keywords']
+        keywords: list[str] = []
+        for raw_keyword in re.split(r'[,\n]+', raw_keywords):
+            keyword = raw_keyword.strip()
+            if keyword.startswith('#'):
+                keyword = keyword[1:].strip()
+            if not keyword:
+                continue
+            if len(keyword) > 30:
+                raise forms.ValidationError('키워드는 각각 30자 이하로 입력해주세요.')
+            if re.search(r'[<>{}\\|;]', keyword):
+                raise forms.ValidationError('키워드에 사용할 수 없는 특수문자가 포함되어 있습니다.')
+            if not re.search(r'[0-9A-Za-z가-힣]', keyword):
+                raise forms.ValidationError('의미가 있는 키워드를 입력해주세요.')
+            validate_safe_text(keyword)
+            if requires_reference(keyword):
+                raise forms.ValidationError(
+                    '검증이 필요한 단정 표현은 자동 생성 키워드로 사용할 수 없습니다.'
+                )
+            normalized = keyword.casefold()
+            if normalized not in {item.casefold() for item in keywords}:
+                keywords.append(keyword)
+
+        if not keywords:
+            raise forms.ValidationError('한 개 이상의 키워드를 입력해주세요.')
+        if len(keywords) > 5:
+            raise forms.ValidationError('키워드는 최대 5개까지 입력할 수 있습니다.')
+        return keywords
 
 
 class GameSetForm(forms.ModelForm):
