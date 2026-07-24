@@ -1,6 +1,6 @@
 # ⚡ 양자택일
 
-메인 화면에서 궁금한 키워드를 입력하면 7개의 맞춤 양자택일이 생성되고 바로 플레이할 수 있는 선택형 웹서비스입니다. 키워드 게임 완료 후 **답변 기반 MBTI 캐릭터·결정적 선택·선택 사용설명서·4축 나침반**을 확인할 수 있습니다.
+메인 화면에서 궁금한 키워드를 입력하면 7개의 맞춤 양자택일이 생성되고 바로 플레이할 수 있는 선택형 웹서비스입니다. 키워드 게임 완료 후 **답변 기반 MBTI 캐릭터·결정적 선택·선택 사용설명서·4축 나침반**을 확인하고, 회원은 선택 아카이브·누적 리포트·친구와 함께하기·맞춤 추천을 이용할 수 있습니다.
 
 > 이 결과는 재미를 위한 콘텐츠이며 실제 성격이나 심리 상태를 진단하지 않습니다.
 
@@ -21,15 +21,15 @@
 | Python | 3.9 | **3.12** |
 | Django | 4.2 | **5.2 LTS** |
 | 프론트엔드 | 순수 CSS (자체 구현) | **Bootstrap 5** |
-| 모델 | BalanceGame + Choice (2개) | **Category, GameSet, Question, Choice, Vote, SavedInstantResult, ResultTemplate** |
+| 모델 | BalanceGame + Choice (2개) | **Category, GameSet, Question, Choice, Vote, SavedInstantResult, ChoiceComparisonInvite, ResultTemplate** |
 | 결과 | 투표 비율만 표시 | **문항별 7단계 등급 + 답변 기반 MBTI 캐릭터·선택 사용설명서** |
 | 플레이 흐름 | 랜덤 질문 반복 가능 | **선택 후 자동 진행 + 이전 선택 수정 + 진행률·선택 기록** |
-| 사용자 기능 | 없음 | **비회원 즉시 플레이 + 회원 상세 결과·자동 저장·결과 아카이브** |
+| 사용자 기능 | 없음 | **비회원 즉시 플레이 + 회원 상세 결과·아카이브·누적 리포트·친구와 함께하기** |
 | 콘텐츠 안전 | 없음 | **금칙어 차단 + 근거 URL + 관리자 사전 승인** |
 | 환경변수 | 하드코딩 | **django-environ (.env)** |
 | 공식 콘텐츠 | 질문 단위 샘플 | **필요한 경우에만 샘플 데이터 생성 가능** |
 | 진입 경험 | 메인으로 즉시 이동 | **전체 화면 소개 + 클릭 전환 애니메이션** |
-| 테스트 | 없음 | **74개 테스트 (100% 통과)** |
+| 테스트 | 없음 | **80개 테스트 (100% 통과)** |
 
 ### 핵심 설계 결정
 
@@ -138,6 +138,18 @@ with transaction.atomic():
 - `내 기록`에서 최근 30개 결과와 사용설명서를 다시 확인하고 직접 삭제 가능
 - 결과 화면에서 로그인·회원가입 후 원래 결과 페이지로 안전하게 복귀
 
+#### 11. 회원 선택 연구소
+
+- 완료한 키워드, 캐릭터, 상세 사용설명서, 실제 문항과 답변을 계정에 자동 저장
+- 아카이브 즐겨찾기와 여러 기기에서 동일한 기록 확인
+- 여러 게임을 합산한 4축 나침반, 지난달 대비 변화, 자주 고른 가치관과 이번 달 대표 캐릭터 제공
+- 완료한 게임으로 1회용 초대 링크를 만들어 친구·연인과 같은 7개 문항 플레이
+- 두 사람의 일치·엇갈린 선택, 결정 궁합, 가장 크게 의견이 갈린 문항 제공
+- 최근 관심·반대 성향·인기·계절 키워드 기반 맞춤 추천
+- 연애·직장·친구·여행·소비·커플/우정의 6가지 회원 전용 테마
+- 회원 상세 결과를 1200×630 PNG 이미지로 브라우저에서 저장
+- 모든 리포트와 궁합 결과에 실제 성격·심리 진단이 아닌 오락용 콘텐츠임을 명시
+
 ---
 
 ## 프로젝트 구조
@@ -153,7 +165,8 @@ game/
 │   ├── settings.py
 │   └── urls.py
 ├── 양자택일/                     # 메인 앱
-│   ├── models.py                # 게임·투표·회원 즉석 결과 저장 모델
+│   ├── models.py                # 게임·투표·회원 결과·함께하기 초대 모델
+│   ├── member_services.py       # 누적 리포트·맞춤 추천·결정 궁합 계산
 │   ├── moderation.py            # 금칙어 및 검증 필요 표현 검사
 │   ├── official_content.py      # 7개 공식 주제의 추가 문항
 │   ├── question_generator.py    # OpenAI/로컬 생성기 선택과 자동 대체
@@ -164,7 +177,7 @@ game/
 │   ├── views.py                 # 플레이·회원·제작·기록 뷰
 │   ├── urls.py                  # 서비스 URL 패턴
 │   ├── admin.py                 # 관리자 인터페이스
-│   ├── tests.py                 # 71개 자동 테스트
+│   ├── tests.py                 # 80개 자동 테스트
 │   └── management/
 │       └── commands/
 │           └── seed_data.py     # 샘플 데이터 생성 커맨드
@@ -186,12 +199,18 @@ game/
 │   ├── registration/
 │   │   ├── login.html           # 로그인
 │   │   └── signup.html          # 회원가입
+│   ├── members/
+│   │   ├── hub.html             # 회원 혜택·추천·전용 테마
+│   │   ├── choice_report.html   # 누적 선택 성향 리포트
+│   │   ├── together_landing.html # 함께하기 초대 링크
+│   │   ├── together_play.html   # 초대 참여자 플레이
+│   │   └── together_result.html # 두 사람 결정 궁합
 │   └── categories/
 │       └── list.html            # 카테고리별 목록
 └── static/
     ├── css/main.css             # 커스텀 스타일 (희귀도 배지 등)
     ├── images/og-yangjatagil.png # 양자택일 SNS 링크 미리보기 이미지
-    └── js/main.js               # 인트로·분석 탭·클립보드 상호작용
+    └── js/main.js               # 인트로·자동 진행·링크 복사·결과 이미지 저장
 ```
 
 ---
@@ -212,7 +231,14 @@ game/
 | `/games/<id>/vote/` | `VoteView` | 투표 처리 (POST 전용) |
 | `/games/<id>/result/` | `ResultView` | 결과 페이지 |
 | `/my-results/` | `ProgressView` | 회원 즉석 결과 아카이브 |
+| `/members/` | `MemberHubView` | 회원 혜택·맞춤 추천·전용 테마 |
+| `/my-report/` | `ChoiceReportView` | 누적 선택 성향 리포트 |
+| `/my-results/instant/<id>/favorite/` | `SavedInstantResultFavoriteView` | 결과 즐겨찾기 토글 |
 | `/my-results/instant/<id>/delete/` | `SavedInstantResultDeleteView` | 본인의 저장 결과 삭제 |
+| `/together/create/<result-id>/` | `TogetherInviteCreateView` | 완료 게임으로 초대 생성 |
+| `/together/<uuid>/` | `TogetherInviteDetailView` | 초대 또는 결정 궁합 결과 |
+| `/together/<uuid>/<번호>/` | `TogetherPlayView` | 초대 참여자 문항 플레이 |
+| `/together/<uuid>/<번호>/answer/` | `TogetherAnswerView` | 참여자 선택 저장·자동 진행 |
 | `/games/create/` | `GameSetCreateView` | 7~10문항 사용자 게임 제작 |
 | `/games/create/generate/` | `QuestionDraftGenerateView` | 키워드 기반 질문 초안 생성 |
 | `/my-games/` | `MyGameSetListView` | 내 제출 및 검수 상태 |
@@ -255,6 +281,9 @@ game/
 - 회원 전용: 강점·주의할 함정·갈등 반응·함께 결정하기 편한 스타일·다음 선택 조언으로 구성된 `나의 선택 사용설명서`
 - 회원 전용: E/I·S/N·T/F·J/P별 선택 횟수를 보여주는 `4축 선택 나침반`
 - 회원 전용: 결과 자동 저장과 `내 기록` 다시보기
+- 회원 전용: 결과 즐겨찾기와 PNG 이미지 저장
+- 회원 전용: 같은 문항으로 친구·연인 함께하기 초대
+- 회원 전용: 여러 게임을 합산한 월간 선택 성향 리포트
 - 새로고침 시 API를 다시 호출하지 않는 세션 결과 캐시
 - 공식 MBTI 검사나 심리 진단이 아닌 오락용 콘텐츠라는 안내
 
@@ -294,7 +323,7 @@ python manage.py runserver
 python manage.py test 양자택일 --verbosity=2
 ```
 
-74개 자동 테스트는 다음 핵심 영역을 검증합니다.
+80개 자동 테스트는 다음 핵심 영역을 검증합니다.
 
 1. 투표 저장 테스트
 2. 중복투표 방지 테스트 (애플리케이션 레벨)
@@ -358,6 +387,12 @@ python manage.py test 양자택일 --verbosity=2
 60. 회원가입 후 요청했던 결과 페이지 안전 복귀 테스트
 61. 회원 상세 결과·자동 저장·아카이브 렌더링 테스트
 62. 본인 결과만 삭제할 수 있는 소유권 보호 테스트
+63. 회원 허브의 6가지 전용 테마·맞춤 추천 렌더링 테스트
+64. 결과 즐겨찾기 토글과 소유권 보호 테스트
+65. 누적 4축·월간 변화·키워드 리포트 집계 테스트
+66. 아카이브의 함께하기·리포트 진입 테스트
+67. 비회원 초대 링크의 로그인·회원가입 진입 테스트
+68. 두 회원의 7문항 공동 플레이·결정 궁합·외부 접근 차단 테스트
 
 ---
 

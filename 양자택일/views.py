@@ -4,6 +4,7 @@ import dataclasses
 import hashlib
 import re
 import uuid
+from collections import Counter
 from typing import Any
 
 from django.conf import settings
@@ -17,6 +18,7 @@ from django.db.models import F, Prefetch, Q, QuerySet
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
@@ -36,11 +38,17 @@ from .forms import (
 from .models import (
     Category,
     Choice,
+    ChoiceComparisonInvite,
     GameSet,
     Question,
     ResultGrade,
     SavedInstantResult,
     Vote,
+)
+from .member_services import (
+    build_choice_report,
+    build_comparison_result,
+    build_member_recommendations,
 )
 from .moderation import requires_reference
 from .openai_mbti_analyzer import analyze_mbti_with_fallback
@@ -481,13 +489,14 @@ class InstantGameResultView(TemplateView):
             game['mbti_result'] = mbti_result
             self.request.session.modified = True
         result_saved = False
+        saved_result = None
         if self.request.user.is_authenticated:
             game_token = game.get('token')
             if not isinstance(game_token, str) or len(game_token) != 32:
                 game_token = uuid.uuid4().hex
                 game['token'] = game_token
                 self.request.session.modified = True
-            SavedInstantResult.objects.update_or_create(
+            saved_result, _created = SavedInstantResult.objects.update_or_create(
                 user=self.request.user,
                 game_token=game_token,
                 defaults={
@@ -497,6 +506,10 @@ class InstantGameResultView(TemplateView):
                     'title': mbti_result['title'],
                     'description': mbti_result['description'],
                     'result_data': mbti_result,
+                    'game_data': {
+                        'questions': game['questions'],
+                        'answers': answers,
+                    },
                 },
             )
             result_saved = True
@@ -506,6 +519,7 @@ class InstantGameResultView(TemplateView):
             'display_name': display_name,
             'question_count': len(game['questions']),
             'result_saved': result_saved,
+            'saved_result': saved_result,
             'categories': Category.objects.all(),
         })
         return context
@@ -907,6 +921,345 @@ class SavedInstantResultDeleteView(LoginRequiredMixin, View):
         saved_result.delete()
         messages.success(request, '선택 결과 기록을 삭제했습니다.')
         return redirect('games:progress')
+
+
+class SavedInstantResultFavoriteView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest, result_id: int) -> HttpResponse:
+        saved_result = get_object_or_404(
+            SavedInstantResult,
+            pk=result_id,
+            user=request.user,
+        )
+        saved_result.is_favorite = not saved_result.is_favorite
+        saved_result.save(update_fields=['is_favorite', 'updated_at'])
+        return redirect('games:progress')
+
+
+class MemberHubView(LoginRequiredMixin, TemplateView):
+    template_name = 'members/hub.html'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        results = list(
+            SavedInstantResult.objects
+            .filter(user=self.request.user)
+            .order_by('-updated_at')[:50]
+        )
+        popular_counter: Counter[str] = Counter()
+        for keywords in SavedInstantResult.objects.values_list('keywords', flat=True):
+            if isinstance(keywords, list):
+                popular_counter.update(str(keyword) for keyword in keywords)
+        recommendations = build_member_recommendations(
+            results,
+            popular_keywords=[
+                keyword
+                for keyword, _count in popular_counter.most_common(8)
+            ],
+        )
+        latest_shareable_result = next(
+            (
+                result
+                for result in results
+                if isinstance(result.game_data.get('questions'), list)
+                and isinstance(result.game_data.get('answers'), list)
+            ),
+            None,
+        )
+        context.update({
+            'categories': Category.objects.all(),
+            'saved_results': results,
+            'favorite_count': sum(result.is_favorite for result in results),
+            'latest_shareable_result': latest_shareable_result,
+            'recommendations': recommendations,
+            'recent_invites': (
+                ChoiceComparisonInvite.objects
+                .filter(Q(creator=self.request.user) | Q(participant=self.request.user))
+                .select_related('creator', 'participant', 'source_result')
+                .order_by('-created_at')[:8]
+            ),
+        })
+        return context
+
+
+class ChoiceReportView(LoginRequiredMixin, TemplateView):
+    template_name = 'members/choice_report.html'
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        results = list(
+            SavedInstantResult.objects
+            .filter(user=self.request.user)
+            .order_by('-created_at')
+        )
+        context.update({
+            'categories': Category.objects.all(),
+            'report': build_choice_report(results),
+        })
+        return context
+
+
+class TogetherInviteCreateView(LoginRequiredMixin, View):
+    def post(self, request: HttpRequest, result_id: int) -> HttpResponse:
+        source_result = get_object_or_404(
+            SavedInstantResult,
+            pk=result_id,
+            user=request.user,
+        )
+        questions = source_result.game_data.get('questions')
+        answers = source_result.game_data.get('answers')
+        if (
+            not isinstance(questions, list)
+            or not 7 <= len(questions) <= 10
+            or not isinstance(answers, list)
+            or len(answers) != len(questions)
+            or any(answer not in Choice.Code.values for answer in answers)
+        ):
+            messages.error(request, '이전 버전의 결과는 함께하기 초대를 만들 수 없습니다.')
+            return redirect('games:progress')
+        invite = (
+            ChoiceComparisonInvite.objects
+            .filter(
+                creator=request.user,
+                source_result=source_result,
+                status=ChoiceComparisonInvite.Status.OPEN,
+            )
+            .first()
+        )
+        if invite is None:
+            invite = ChoiceComparisonInvite.objects.create(
+                creator=request.user,
+                source_result=source_result,
+            )
+        return redirect('games:together_detail', invite_id=invite.pk)
+
+
+class TogetherInviteDetailView(View):
+    template_name = 'members/together_landing.html'
+    result_template_name = 'members/together_result.html'
+
+    def get(self, request: HttpRequest, invite_id: uuid.UUID) -> HttpResponse:
+        invite = get_object_or_404(
+            ChoiceComparisonInvite.objects.select_related(
+                'creator',
+                'participant',
+                'source_result',
+            ),
+            pk=invite_id,
+        )
+        if invite.status == ChoiceComparisonInvite.Status.COMPLETED:
+            if not request.user.is_authenticated:
+                return redirect(
+                    f"{reverse('games:login')}?next="
+                    f"{reverse('games:together_detail', kwargs={'invite_id': invite.pk})}"
+                )
+            if request.user.pk not in {
+                invite.creator_id,
+                invite.participant_id,
+            }:
+                return HttpResponse(status=404)
+            game_data = invite.source_result.game_data
+            comparison = build_comparison_result(
+                questions=game_data.get('questions', []),
+                creator_answers=game_data.get('answers', []),
+                participant_answers=invite.participant_answers,
+                creator_result=invite.source_result.result_data,
+                participant_result=invite.participant_result,
+            )
+            return render(request, self.result_template_name, {
+                'invite': invite,
+                'comparison': comparison,
+                'categories': Category.objects.all(),
+            })
+
+        if request.user.is_authenticated and request.user != invite.creator:
+            if invite.participant not in {None, request.user}:
+                return HttpResponse(status=404)
+            return redirect(
+                'games:together_play',
+                invite_id=invite.pk,
+                question_number=1,
+            )
+
+        invite_url = request.build_absolute_uri(
+            reverse(
+                'games:together_detail',
+                kwargs={'invite_id': invite.pk},
+            )
+        )
+        return render(request, self.template_name, {
+            'invite': invite,
+            'invite_url': invite_url,
+            'is_creator': (
+                request.user.is_authenticated
+                and request.user == invite.creator
+            ),
+            'categories': Category.objects.all(),
+        })
+
+
+class TogetherPlayView(LoginRequiredMixin, TemplateView):
+    template_name = 'members/together_play.html'
+
+    def _get_invite(self) -> ChoiceComparisonInvite:
+        with transaction.atomic():
+            invite = get_object_or_404(
+                ChoiceComparisonInvite.objects.select_for_update().select_related(
+                    'creator',
+                    'participant',
+                    'source_result',
+                ),
+                pk=self.kwargs['invite_id'],
+                status=ChoiceComparisonInvite.Status.OPEN,
+            )
+            if self.request.user.pk == invite.creator_id:
+                raise PermissionError
+            if invite.participant_id is None:
+                invite.participant = self.request.user
+                invite.save(update_fields=['participant'])
+            elif invite.participant_id != self.request.user.pk:
+                raise PermissionError
+        return invite
+
+    def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
+        context = super().get_context_data(**kwargs)
+        try:
+            invite = self._get_invite()
+        except PermissionError:
+            context['forbidden_invite'] = True
+            return context
+
+        questions = invite.source_result.game_data.get('questions', [])
+        question_number = self.kwargs['question_number']
+        if not isinstance(questions, list) or question_number not in range(1, len(questions) + 1):
+            context['invalid_question'] = True
+            context['invite'] = invite
+            return context
+        session_key = f'together_answers_{invite.pk.hex}'
+        answers = self.request.session.get(session_key)
+        if not isinstance(answers, list) or len(answers) != len(questions):
+            answers = [None] * len(questions)
+            self.request.session[session_key] = answers
+        first_unanswered = next(
+            (index for index, answer in enumerate(answers) if answer is None),
+            len(answers),
+        )
+        if question_number - 1 > first_unanswered:
+            context['next_required_question'] = first_unanswered + 1
+        context.update({
+            'invite': invite,
+            'question': questions[question_number - 1],
+            'question_number': question_number,
+            'question_count': len(questions),
+            'completed_count': sum(answer is not None for answer in answers),
+            'selected_choice': answers[question_number - 1],
+            'previous_question_number': question_number - 1 if question_number > 1 else None,
+            'categories': Category.objects.all(),
+        })
+        return context
+
+    def render_to_response(
+        self,
+        context: dict[str, Any],
+        **response_kwargs: Any,
+    ) -> HttpResponse:
+        if context.get('forbidden_invite'):
+            return HttpResponse(status=404)
+        if context.get('invalid_question'):
+            return redirect('games:together_detail', invite_id=context['invite'].pk)
+        if context.get('next_required_question'):
+            return redirect(
+                'games:together_play',
+                invite_id=context['invite'].pk,
+                question_number=context['next_required_question'],
+            )
+        return super().render_to_response(context, **response_kwargs)
+
+
+class TogetherAnswerView(LoginRequiredMixin, View):
+    def post(
+        self,
+        request: HttpRequest,
+        invite_id: uuid.UUID,
+        question_number: int,
+    ) -> HttpResponse:
+        invite = get_object_or_404(
+            ChoiceComparisonInvite.objects.select_related('source_result'),
+            pk=invite_id,
+            participant=request.user,
+            status=ChoiceComparisonInvite.Status.OPEN,
+        )
+        questions = invite.source_result.game_data.get('questions', [])
+        if not isinstance(questions, list) or question_number not in range(1, len(questions) + 1):
+            return redirect('games:together_detail', invite_id=invite.pk)
+        session_key = f'together_answers_{invite.pk.hex}'
+        answers = request.session.get(session_key)
+        if not isinstance(answers, list) or len(answers) != len(questions):
+            answers = [None] * len(questions)
+        earlier_missing = next(
+            (
+                index
+                for index, answer in enumerate(answers[:question_number - 1])
+                if answer is None
+            ),
+            None,
+        )
+        if earlier_missing is not None:
+            return redirect(
+                'games:together_play',
+                invite_id=invite.pk,
+                question_number=earlier_missing + 1,
+            )
+        choice_code = request.POST.get('choice')
+        if choice_code not in Choice.Code.values:
+            messages.error(request, 'A 또는 B 중 하나를 선택해주세요.')
+            return redirect(
+                'games:together_play',
+                invite_id=invite.pk,
+                question_number=question_number,
+            )
+        answers[question_number - 1] = choice_code
+        request.session[session_key] = answers
+        if any(answer is None for answer in answers):
+            return redirect(
+                'games:together_play',
+                invite_id=invite.pk,
+                question_number=answers.index(None) + 1,
+            )
+
+        participant_result = analyze_mbti_with_fallback(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_MODEL,
+            timeout=settings.OPENAI_TIMEOUT,
+            questions=questions,
+            choice_codes=answers,
+        )
+        invite.participant_answers = answers
+        invite.participant_result = participant_result
+        invite.status = ChoiceComparisonInvite.Status.COMPLETED
+        invite.completed_at = timezone.now()
+        invite.save(update_fields=[
+            'participant_answers',
+            'participant_result',
+            'status',
+            'completed_at',
+        ])
+        SavedInstantResult.objects.update_or_create(
+            user=request.user,
+            game_token=invite.pk.hex,
+            defaults={
+                'topic': f'{invite.source_result.topic} 함께하기'[:120],
+                'keywords': invite.source_result.keywords,
+                'mbti': participant_result['mbti'],
+                'title': participant_result['title'],
+                'description': participant_result['description'],
+                'result_data': participant_result,
+                'game_data': {
+                    'questions': questions,
+                    'answers': answers,
+                },
+            },
+        )
+        return redirect('games:together_detail', invite_id=invite.pk)
 
 
 class GameSetCreateView(LoginRequiredMixin, View):

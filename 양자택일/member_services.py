@@ -102,7 +102,8 @@ def _result_axis_counts(result: Any) -> dict[str, tuple[int, int]]:
         axis: (0, 0)
         for axis, _first, _second, _label in AXES
     }
-    summaries = result.result_data.get('axis_summaries', [])
+    result_data = result.result_data if isinstance(result.result_data, dict) else {}
+    summaries = result_data.get('axis_summaries', [])
     if not isinstance(summaries, list):
         return counts
     for summary in summaries:
@@ -213,14 +214,14 @@ def build_choice_report(
         if current_mbti
         else (all_mbti.most_common(1)[0][0] if all_mbti else None)
     )
-    keyword_counts = Counter(
-        str(keyword)
-        for result in result_list
-        for keyword in result.keywords
-    )
+    keyword_counts = Counter()
+    for result in result_list:
+        if isinstance(result.keywords, list):
+            keyword_counts.update(str(keyword) for keyword in result.keywords)
     value_keywords = [
         TRAIT_VALUES[trait]
         for trait, _count in trait_scores.most_common(4)
+        if _count > 0
     ]
     return {
         'total_results': len(result_list),
@@ -241,16 +242,17 @@ def build_member_recommendations(
     month: int | None = None,
 ) -> dict[str, Any]:
     result_list = list(results)
-    keyword_counts = Counter(
-        str(keyword)
-        for result in result_list
-        for keyword in result.keywords
-    )
+    keyword_counts = Counter()
+    for result in result_list:
+        if isinstance(result.keywords, list):
+            keyword_counts.update(str(keyword) for keyword in result.keywords)
     mbti_counts = Counter(result.mbti for result in result_list)
     representative = mbti_counts.most_common(1)[0][0] if mbti_counts else ''
     opposite_topics = []
     for trait in representative:
-        topic = OPPOSITE_TOPICS[trait]
+        topic = OPPOSITE_TOPICS.get(trait)
+        if topic is None:
+            continue
         if topic not in opposite_topics:
             opposite_topics.append(topic)
 

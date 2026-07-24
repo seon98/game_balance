@@ -357,7 +357,140 @@ function initInstantAnswer() {
   });
 }
 
+function initInviteLinkCopy() {
+  const input = document.getElementById('inviteLink');
+  const button = document.getElementById('copyInviteButton');
+  if (!input || !button) return;
+
+  button.addEventListener('click', function () {
+    const text = input.value;
+    const done = function () {
+      const original = button.innerHTML;
+      button.innerHTML = '<i class="bi bi-check2 me-1"></i>복사됨';
+      button.classList.replace('btn-primary', 'btn-success');
+      window.setTimeout(function () {
+        button.innerHTML = original;
+        button.classList.replace('btn-success', 'btn-primary');
+      }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () {
+        input.select();
+        document.execCommand('copy');
+        done();
+      });
+      return;
+    }
+    input.select();
+    document.execCommand('copy');
+    done();
+  });
+}
+
+function drawWrappedText(context, text, x, y, maxWidth, lineHeight, maxLines) {
+  const words = String(text || '').split(/\s+/);
+  const lines = [];
+  let line = '';
+  words.forEach(function (word) {
+    const candidate = line ? line + ' ' + word : word;
+    if (context.measureText(candidate).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  });
+  if (line) lines.push(line);
+  lines.slice(0, maxLines).forEach(function (currentLine, index) {
+    let printable = currentLine;
+    if (index === maxLines - 1 && lines.length > maxLines) {
+      while (
+        printable.length
+        && context.measureText(printable + '…').width > maxWidth
+      ) {
+        printable = printable.slice(0, -1);
+      }
+      printable += '…';
+    }
+    context.fillText(printable, x, y + index * lineHeight);
+  });
+}
+
+function initMemberResultImage() {
+  const button = document.getElementById('memberResultImageButton');
+  const payloadElement = document.getElementById('memberResultPayload');
+  if (!button || !payloadElement) return;
+
+  button.addEventListener('click', function () {
+    let result;
+    try {
+      result = JSON.parse(payloadElement.textContent);
+    } catch (_) {
+      alert('결과 정보를 읽지 못했습니다. 페이지를 새로고침해주세요.');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 630;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    const gradient = context.createLinearGradient(0, 0, 1200, 630);
+    gradient.addColorStop(0, '#eef4ff');
+    gradient.addColorStop(0.52, '#ffffff');
+    gradient.addColorStop(1, '#f4efff');
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 1200, 630);
+
+    context.fillStyle = 'rgba(13, 110, 253, 0.10)';
+    context.beginPath();
+    context.arc(1070, 80, 220, 0, Math.PI * 2);
+    context.fill();
+    context.fillStyle = 'rgba(111, 66, 193, 0.09)';
+    context.beginPath();
+    context.arc(80, 610, 250, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = '#0d6efd';
+    context.font = '800 28px Pretendard, Apple SD Gothic Neo, sans-serif';
+    context.fillText('⚡ 양자택일 · MY CHOICE CHARACTER', 72, 78);
+
+    context.fillStyle = '#172033';
+    context.font = '900 112px Pretendard, Apple SD Gothic Neo, sans-serif';
+    context.fillText(String(result.mbti || ''), 72, 230);
+
+    context.fillStyle = '#253049';
+    context.font = '800 45px Pretendard, Apple SD Gothic Neo, sans-serif';
+    drawWrappedText(context, '“' + String(result.title || '') + '”', 72, 310, 1020, 58, 2);
+
+    context.fillStyle = '#606b80';
+    context.font = '500 25px Pretendard, Apple SD Gothic Neo, sans-serif';
+    drawWrappedText(context, result.description || '', 72, 430, 1020, 38, 3);
+
+    context.fillStyle = '#7a8497';
+    context.font = '500 19px Pretendard, Apple SD Gothic Neo, sans-serif';
+    context.fillText('이번 선택을 재미있게 해석한 오락용 결과이며 실제 성격 진단이 아닙니다.', 72, 578);
+
+    button.disabled = true;
+    canvas.toBlob(function (blob) {
+      button.disabled = false;
+      if (!blob) return;
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = '양자택일-' + String(result.mbti || 'result') + '.png';
+      link.click();
+      window.setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    }, 'image/png');
+  });
+}
+
 document.addEventListener('DOMContentLoaded', initWelcome);
 document.addEventListener('DOMContentLoaded', initAnalysisTabs);
 document.addEventListener('DOMContentLoaded', initInstantSearch);
 document.addEventListener('DOMContentLoaded', initInstantAnswer);
+document.addEventListener('DOMContentLoaded', initInviteLinkCopy);
+document.addEventListener('DOMContentLoaded', initMemberResultImage);

@@ -35,10 +35,37 @@ urlpatterns = [
     path('games/<int:question_id>/vote/', views.VoteView.as_view(), name='vote'),
     path('games/<int:question_id>/result/', views.ResultView.as_view(), name='result'),
     path('my-results/', views.ProgressView.as_view(), name='progress'),
+    path('members/', views.MemberHubView.as_view(), name='member_hub'),
+    path('my-report/', views.ChoiceReportView.as_view(), name='choice_report'),
+    path(
+        'my-results/instant/<int:result_id>/favorite/',
+        views.SavedInstantResultFavoriteView.as_view(),
+        name='saved_instant_result_favorite',
+    ),
     path(
         'my-results/instant/<int:result_id>/delete/',
         views.SavedInstantResultDeleteView.as_view(),
         name='saved_instant_result_delete',
+    ),
+    path(
+        'together/create/<int:result_id>/',
+        views.TogetherInviteCreateView.as_view(),
+        name='together_create',
+    ),
+    path(
+        'together/<uuid:invite_id>/',
+        views.TogetherInviteDetailView.as_view(),
+        name='together_detail',
+    ),
+    path(
+        'together/<uuid:invite_id>/<int:question_number>/',
+        views.TogetherPlayView.as_view(),
+        name='together_play',
+    ),
+    path(
+        'together/<uuid:invite_id>/<int:question_number>/answer/',
+        views.TogetherAnswerView.as_view(),
+        name='together_answer',
     ),
     path('games/create/', views.GameSetCreateView.as_view(), name='create'),
     path(

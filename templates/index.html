@@ -12,6 +12,10 @@
     </a>
     {% if user.is_authenticated %}
     <div class="d-flex align-items-center gap-2">
+      <a class="home-member-link" href="{% url 'games:member_hub' %}">
+        <i class="bi bi-gem"></i>
+        <span>회원 혜택</span>
+      </a>
       <a class="home-member-link" href="{% url 'games:progress' %}">
         <i class="bi bi-clock-history"></i>
         <span>내 기록</span>

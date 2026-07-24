@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}회원 혜택 - 양자택일{% endblock %}
+
+{% block content %}
+<section class="member-hub-hero py-5">
+  <div class="container">
+    <div class="row align-items-center g-4">
+      <div class="col-lg-7">
+        <span class="eyebrow">MEMBER CHOICE LAB</span>
+        <h1 class="display-5 fw-black mt-2 mb-3">
+          {{ user.username }}님의 선택이<br>
+          <span class="text-primary">쌓일수록 더 재미있게</span>
+        </h1>
+        <p class="lead text-muted mb-4">
+          지난 결과를 다시 보고, 선택 방향을 비교하고, 친구와 같은 문제에 답해보세요.
+        </p>
+        <div class="d-flex flex-wrap gap-2">
+          <a href="{% url 'games:progress' %}" class="btn btn-primary fw-bold px-4">
+            <i class="bi bi-archive me-2"></i>나의 선택 아카이브
+          </a>
+          <a href="{% url 'games:choice_report' %}" class="btn btn-outline-primary fw-bold px-4">
+            <i class="bi bi-compass me-2"></i>선택 성향 리포트
+          </a>
+        </div>
+      </div>
+      <div class="col-lg-5">
+        <div class="member-hub-summary">
+          <article>
+            <span>저장된 결과</span>
+            <strong>{{ saved_results|length }}</strong>
+          </article>
+          <article>
+            <span>즐겨찾기</span>
+            <strong>{{ favorite_count }}</strong>
+          </article>
+          <article>
+            <span>함께한 게임</span>
+            <strong>{{ recent_invites|length }}</strong>
+          </article>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="py-5">
+  <div class="container">
+    <div class="member-section-heading">
+      <div>
+        <span class="eyebrow">PLAY TOGETHER</span>
+        <h2 class="h3 fw-black mt-1">친구·연인과 함께하기</h2>
+      </div>
+      <span class="member-feature-number">01</span>
+    </div>
+    <div class="together-promo-card">
+      <div>
+        <span class="together-promo-icon"><i class="bi bi-people-fill"></i></span>
+        <h3 class="h4 fw-black mt-3">같은 질문, 얼마나 같은 선택?</h3>
+        <p class="text-muted mb-0">
+          내가 완료한 게임으로 초대 링크를 만들면 두 사람의 일치·엇갈린 선택과 결정 궁합을 보여드려요.
+        </p>
+      </div>
+      {% if latest_shareable_result %}
+      <form method="post" action="{% url 'games:together_create' latest_shareable_result.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-warning fw-bold px-4">
+          <i class="bi bi-link-45deg me-2"></i>
+          ‘{{ latest_shareable_result.topic|truncatechars:18 }}’ 초대 만들기
+        </button>
+      </form>
+      {% else %}
+      <a href="{% url 'games:index' %}#quick-play" class="btn btn-warning fw-bold px-4">
+        먼저 게임하고 초대 만들기
+      </a>
+      {% endif %}
+    </div>
+
+    {% if recent_invites %}
+    <div class="member-invite-list mt-3">
+      {% for invite in recent_invites %}
+      <a href="{% url 'games:together_detail' invite.pk %}">
+        <span>
+          <strong>{{ invite.source_result.topic }}</strong>
+          <small>{{ invite.creator.username }}님의 초대 · {{ invite.get_status_display }}</small>
+        </span>
+        <i class="bi bi-chevron-right"></i>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="member-soft-section py-5">
+  <div class="container">
+    <div class="member-section-heading">
+      <div>
+        <span class="eyebrow">FOR YOU</span>
+        <h2 class="h3 fw-black mt-1">맞춤형 게임 추천</h2>
+      </div>
+      <span class="member-feature-number">02</span>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <article class="recommendation-card h-100">
+          <span class="recommendation-icon"><i class="bi bi-clock-history"></i></span>
+          <h3 class="h5 fw-black">최근 관심 키워드</h3>
+          <p class="small text-muted">지금까지 자주 플레이한 주제로 새로운 질문을 만듭니다.</p>
+          <div class="member-keyword-list">
+            {% for keyword, count in recommendations.recent_interests %}
+            <form method="post" action="{% url 'games:instant_generate' %}">
+              {% csrf_token %}
+              <input type="hidden" name="keywords" value="{{ keyword }}">
+              <button type="submit">#{{ keyword }} <small>{{ count }}회</small></button>
+            </form>
+            {% empty %}
+            <a href="{% url 'games:index' %}#quick-play">첫 관심 키워드 만들기</a>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+      <div class="col-lg-6">
+        <article class="recommendation-card h-100">
+          <span class="recommendation-icon purple"><i class="bi bi-arrow-left-right"></i></span>
+          <h3 class="h5 fw-black">반대 선택 탐험</h3>
+          <p class="small text-muted">지금까지 많이 나온 성향과 반대 방향의 상황도 경험해보세요.</p>
+          <div class="member-keyword-list">
+            {% for keyword in recommendations.opposite_topics %}
+            <form method="post" action="{% url 'games:instant_generate' %}">
+              {% csrf_token %}
+              <input type="hidden" name="keywords" value="{{ keyword }}">
+              <button type="submit">#{{ keyword }}</button>
+            </form>
+            {% empty %}
+            <span class="text-muted small">결과가 쌓이면 반대 선택 주제를 추천해드려요.</span>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+      <div class="col-lg-6">
+        <article class="recommendation-card h-100">
+          <span class="recommendation-icon orange"><i class="bi bi-fire"></i></span>
+          <h3 class="h5 fw-black">함께 많이 고른 주제</h3>
+          <p class="small text-muted">양자택일 회원들이 자주 플레이한 키워드입니다.</p>
+          <div class="member-keyword-list">
+            {% for keyword in recommendations.popular_topics %}
+            <form method="post" action="{% url 'games:instant_generate' %}">
+              {% csrf_token %}
+              <input type="hidden" name="keywords" value="{{ keyword }}">
+              <button type="submit">#{{ keyword }}</button>
+            </form>
+            {% empty %}
+            <span class="text-muted small">인기 플레이가 모이면 이곳에 표시됩니다.</span>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+      <div class="col-lg-6">
+        <article class="recommendation-card h-100">
+          <span class="recommendation-icon green"><i class="bi bi-calendar-event"></i></span>
+          <h3 class="h5 fw-black">지금 계절에 어울리는 게임</h3>
+          <p class="small text-muted">이번 달의 분위기와 이벤트를 반영한 추천입니다.</p>
+          <div class="member-keyword-list">
+            {% for keyword in recommendations.seasonal_topics %}
+            <form method="post" action="{% url 'games:instant_generate' %}">
+              {% csrf_token %}
+              <input type="hidden" name="keywords" value="{{ keyword }}">
+              <button type="submit">#{{ keyword }}</button>
+            </form>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="py-5">
+  <div class="container">
+    <div class="member-section-heading">
+      <div>
+        <span class="eyebrow">MEMBER EXCLUSIVE</span>
+        <h2 class="h3 fw-black mt-1">회원 전용 테마</h2>
+      </div>
+      <span class="member-feature-number">03</span>
+    </div>
+    <div class="member-theme-grid">
+      {% for theme in recommendations.themes %}
+      <article class="member-theme-card">
+        <span><i class="bi {{ theme.icon }}"></i></span>
+        <h3>{{ theme.name }}</h3>
+        <p>{{ theme.description }}</p>
+        <form method="post" action="{% url 'games:instant_generate' %}">
+          {% csrf_token %}
+          <input type="hidden" name="keywords" value="{{ theme.keywords }}">
+          <button type="submit" class="btn btn-sm btn-outline-primary fw-bold">
+            이 테마 시작하기
+          </button>
+        </form>
+      </article>
+      {% endfor %}
+    </div>
+    <p class="member-entertainment-note mt-4 mb-0">
+      <i class="bi bi-info-circle me-1"></i>
+      추천과 리포트는 게임 기록을 바탕으로 제공되는 오락용 콘텐츠이며 실제 성격·심리 진단이 아닙니다.
+    </p>
+  </div>
+</section>
+{% endblock %}

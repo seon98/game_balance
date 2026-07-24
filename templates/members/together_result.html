@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}우리의 결정 궁합 - 양자택일{% endblock %}
+
+{% block content %}
+<section class="together-result-page py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-xl-9">
+        <div class="text-center mb-4">
+          <p class="eyebrow mb-2">OUR DECISION MATCH</p>
+          <h1 class="display-5 fw-black">우리의 결정 궁합</h1>
+          <p class="text-muted">‘{{ invite.source_result.topic }}’에서 두 사람이 고른 선택을 비교했어요.</p>
+        </div>
+
+        <div class="compatibility-card">
+          <div class="compatibility-people">
+            <article>
+              <span>{{ invite.creator.username|first }}</span>
+              <strong>{{ invite.creator.username }}</strong>
+              <small>{{ comparison.creator_mbti }}</small>
+            </article>
+            <div class="compatibility-score">
+              <strong>{{ comparison.match_percentage }}%</strong>
+              <span>선택 일치</span>
+            </div>
+            <article>
+              <span>{{ invite.participant.username|first }}</span>
+              <strong>{{ invite.participant.username }}</strong>
+              <small>{{ comparison.participant_mbti }}</small>
+            </article>
+          </div>
+          <h2>“{{ comparison.title }}”</h2>
+          <div class="compatibility-counts">
+            <span><i class="bi bi-check-circle-fill"></i> 같은 선택 {{ comparison.match_count }}개</span>
+            <span><i class="bi bi-shuffle"></i> 엇갈린 선택 {{ comparison.difference_count }}개</span>
+          </div>
+        </div>
+
+        <div class="card border-0 shadow-sm rounded-4 mt-4">
+          <div class="card-body p-4 p-md-5">
+            <div class="d-flex justify-content-between align-items-center gap-2 mb-4">
+              <div>
+                <p class="eyebrow mb-1">BIGGEST DIFFERENCES</p>
+                <h2 class="h4 fw-black mb-0">가장 크게 의견이 갈린 문항</h2>
+              </div>
+              <span class="badge rounded-pill bg-primary">{{ comparison.difference_count }}개</span>
+            </div>
+            <div class="comparison-difference-list">
+              {% for item in comparison.highlighted_differences %}
+              <article>
+                <span>Q{{ item.question_number }}</span>
+                <h3>{{ item.question }}</h3>
+                <div>
+                  <p><strong>{{ invite.creator.username }}</strong>{{ item.creator_choice }}</p>
+                  <p><strong>{{ invite.participant.username }}</strong>{{ item.participant_choice }}</p>
+                </div>
+              </article>
+              {% empty %}
+              <div class="text-center py-4">
+                <span class="together-big-icon small"><i class="bi bi-stars"></i></span>
+                <h3 class="h5 fw-black mt-3">모든 선택이 일치했어요!</h3>
+                <p class="text-muted mb-0">이번 게임에서는 토론할 틈도 없는 완벽한 결정 메이트입니다.</p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-center gap-2 mt-4">
+          <a href="{% url 'games:member_hub' %}" class="btn btn-primary fw-bold px-4">
+            회원 혜택으로 돌아가기
+          </a>
+          <a href="{% url 'games:index' %}#quick-play" class="btn btn-outline-primary fw-bold px-4">
+            다른 키워드 시작하기
+          </a>
+        </div>
+        <p class="member-entertainment-note mt-4 mb-0">
+          이 궁합 결과는 두 사람의 이번 게임 선택만 활용한 오락용 콘텐츠이며 관계나 심리를 진단하지 않습니다.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

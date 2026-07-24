@@ -225,6 +225,27 @@
           </button>
         </div>
 
+        {% if user.is_authenticated and saved_result %}
+        {{ mbti_result|json_script:"memberResultPayload" }}
+        <div class="member-result-actions mt-3">
+          <div>
+            <strong>이 결과를 더 즐겨보세요</strong>
+            <p class="small text-muted mb-0">이미지로 저장하거나 같은 문항을 친구에게 보내 선택을 비교할 수 있어요.</p>
+          </div>
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" id="memberResultImageButton" class="btn btn-outline-primary fw-bold">
+              <i class="bi bi-image me-1"></i>결과 이미지 저장
+            </button>
+            <form method="post" action="{% url 'games:together_create' saved_result.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary fw-bold">
+                <i class="bi bi-people me-1"></i>함께하기 초대
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+
         <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
           <a
             href="{% url 'games:instant_play' question_count %}"

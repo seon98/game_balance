@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}선택 성향 리포트 - 양자택일{% endblock %}
+
+{% block content %}
+<section class="choice-report-hero py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-xl-10">
+        <span class="eyebrow">MY CHOICE REPORT</span>
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mt-2">
+          <div>
+            <h1 class="display-6 fw-black mb-2">{{ user.username }}님의 선택 성향 리포트</h1>
+            <p class="text-muted mb-0">여러 게임의 선택을 모아 최근 방향과 변화를 한눈에 보여드립니다.</p>
+          </div>
+          <a href="{% url 'games:member_hub' %}" class="btn btn-outline-primary fw-bold">
+            <i class="bi bi-grid me-1"></i>회원 혜택으로
+          </a>
+        </div>
+
+        <div class="choice-report-summary mt-4">
+          <article>
+            <span>누적 게임</span>
+            <strong>{{ report.total_results }}</strong>
+          </article>
+          <article>
+            <span>이번 달</span>
+            <strong>{{ report.current_month_count }}</strong>
+          </article>
+          <article class="representative">
+            <span>이번 달 대표 캐릭터</span>
+            <strong>{{ report.representative_mbti|default:"아직 없음" }}</strong>
+          </article>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="py-5">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-xl-10">
+        {% if report.total_results %}
+        <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+          <h2 class="h4 fw-black mb-0">E/I · S/N · T/F · J/P 누적 나침반</h2>
+          <span class="small text-muted">지난달 {{ report.previous_month_count }}개 기록과 비교</span>
+        </div>
+        <div class="report-axis-grid">
+          {% for axis in report.axis_reports %}
+          <article class="report-axis-card">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <div>
+                <span class="small text-muted">{{ axis.label }}</span>
+                <h3>{{ axis.axis }}</h3>
+              </div>
+              <span class="report-shift">{{ axis.shift_label }}</span>
+            </div>
+            <div class="report-axis-bar" role="img" aria-label="{{ axis.first }} {{ axis.first_count }}회, {{ axis.second }} {{ axis.second_count }}회">
+              <span style="width:{{ axis.first_percentage }}%"></span>
+              <span style="width:{{ axis.second_percentage }}%"></span>
+            </div>
+            <div class="d-flex justify-content-between mt-2">
+              <strong>{{ axis.first }} {{ axis.first_percentage }}%</strong>
+              <strong>{{ axis.second }} {{ axis.second_percentage }}%</strong>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+
+        <div class="row g-3 mt-2">
+          <div class="col-lg-4">
+            <article class="report-insight-card h-100">
+              <span class="report-insight-icon"><i class="bi bi-lightning"></i></span>
+              <h2 class="h5 fw-black">최근 자주 나타난 캐릭터</h2>
+              <div class="report-pill-list">
+                {% for mbti, count in report.frequent_mbti %}
+                <span>{{ mbti }} <small>{{ count }}회</small></span>
+                {% endfor %}
+              </div>
+            </article>
+          </div>
+          <div class="col-lg-4">
+            <article class="report-insight-card h-100">
+              <span class="report-insight-icon purple"><i class="bi bi-tags"></i></span>
+              <h2 class="h5 fw-black">자주 선택한 주제</h2>
+              <div class="report-pill-list">
+                {% for keyword, count in report.top_keywords %}
+                <span>#{{ keyword }} <small>{{ count }}회</small></span>
+                {% endfor %}
+              </div>
+            </article>
+          </div>
+          <div class="col-lg-4">
+            <article class="report-insight-card h-100">
+              <span class="report-insight-icon green"><i class="bi bi-gem"></i></span>
+              <h2 class="h5 fw-black">자주 드러난 가치관</h2>
+              <div class="report-pill-list">
+                {% for keyword in report.value_keywords %}
+                <span>{{ keyword }}</span>
+                {% endfor %}
+              </div>
+            </article>
+          </div>
+        </div>
+        {% else %}
+        <div class="card border-0 shadow-sm rounded-4">
+          <div class="card-body p-5 text-center">
+            <span class="empty-state-icon mx-auto mb-3"><i class="bi bi-compass"></i></span>
+            <h2 class="h4 fw-black">아직 분석할 선택 기록이 없어요</h2>
+            <p class="text-muted mb-4">첫 키워드 게임을 완료하면 4축 나침반이 시작됩니다.</p>
+            <a href="{% url 'games:index' %}#quick-play" class="btn btn-primary fw-bold px-4">
+              첫 게임 시작하기
+            </a>
+          </div>
+        </div>
+        {% endif %}
+
+        <p class="member-entertainment-note mt-4 mb-0">
+          <i class="bi bi-shield-check me-1"></i>
+          이 리포트는 플레이 기록을 활용한 오락용 해석입니다. 실제 MBTI 검사, 성격 또는 심리 진단으로 사용하지 마세요.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

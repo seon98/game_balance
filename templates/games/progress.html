@@ -35,9 +35,14 @@
           {% if saved_instant_results %}
           <div class="d-flex justify-content-between align-items-center gap-3 mb-4">
             <h2 class="h4 fw-black mb-0">저장된 키워드 결과</h2>
-            <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3 py-2">
-              {{ saved_instant_results|length }}개
-            </span>
+            <div class="d-flex flex-wrap gap-2">
+              <a href="{% url 'games:choice_report' %}" class="btn btn-sm btn-outline-primary fw-bold">
+                <i class="bi bi-compass me-1"></i>누적 리포트
+              </a>
+              <a href="{% url 'games:member_hub' %}" class="btn btn-sm btn-primary fw-bold">
+                <i class="bi bi-gem me-1"></i>회원 혜택
+              </a>
+            </div>
           </div>
 
           <div class="saved-result-list">
@@ -88,15 +93,42 @@
                     <span class="badge rounded-pill bg-light text-secondary">#{{ keyword }}</span>
                     {% endfor %}
                   </div>
-                  <form
-                    method="post"
-                    action="{% url 'games:saved_instant_result_delete' result.pk %}"
-                  >
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                      <i class="bi bi-trash3 me-1"></i>기록 삭제
-                    </button>
-                  </form>
+                  <div class="d-flex flex-wrap gap-2">
+                    <form
+                      method="post"
+                      action="{% url 'games:saved_instant_result_favorite' result.pk %}"
+                    >
+                      {% csrf_token %}
+                      <button
+                        type="submit"
+                        class="btn btn-sm {% if result.is_favorite %}btn-warning{% else %}btn-outline-warning{% endif %}"
+                        aria-label="{% if result.is_favorite %}즐겨찾기 해제{% else %}즐겨찾기 추가{% endif %}"
+                      >
+                        <i class="bi {% if result.is_favorite %}bi-star-fill{% else %}bi-star{% endif %} me-1"></i>
+                        {% if result.is_favorite %}즐겨찾기됨{% else %}즐겨찾기{% endif %}
+                      </button>
+                    </form>
+                    {% if result.game_data.questions %}
+                    <form
+                      method="post"
+                      action="{% url 'games:together_create' result.pk %}"
+                    >
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-people me-1"></i>함께하기
+                      </button>
+                    </form>
+                    {% endif %}
+                    <form
+                      method="post"
+                      action="{% url 'games:saved_instant_result_delete' result.pk %}"
+                    >
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-trash3 me-1"></i>기록 삭제
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </div>
             </details>

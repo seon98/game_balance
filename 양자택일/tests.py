@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from io import StringIO
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -10,10 +11,12 @@ from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import (
     Category,
     Choice,
+    ChoiceComparisonInvite,
     GameSet,
     Question,
     ResultGrade,
@@ -73,6 +76,63 @@ def make_generated_question_draft(
         'choice_a_trait': choice_a_trait,
         'choice_b_trait': choice_b_trait,
     }
+
+
+def make_saved_member_result(
+    user,
+    *,
+    token: str = 'a' * 32,
+    topic: str = '여행 선택 보고서',
+    mbti: str = 'ENTJ',
+    answers: list[str] | None = None,
+) -> SavedInstantResult:
+    questions = [
+        make_generated_question_draft(index)
+        for index in range(1, 8)
+    ]
+    selected_answers = answers or ['A', 'A', 'B', 'A', 'B', 'A', 'B']
+    return SavedInstantResult.objects.create(
+        user=user,
+        game_token=token,
+        topic=topic,
+        keywords=['여행', '친구'],
+        mbti=mbti,
+        title='일정표를 든 모험 지휘관',
+        description='새로운 경험도 놓치지 않으면서 결론은 빠르게 정합니다.',
+        result_data={
+            'strength': '방향을 빠르게 정합니다.',
+            'blind_spot': '다른 속도를 놓칠 수 있습니다.',
+            'conflict_style': '쟁점을 정리해 말합니다.',
+            'compatible_style': '의견을 솔직히 말하는 사람과 편합니다.',
+            'decision_tip': '상대의 우선순위를 먼저 물어보세요.',
+            'axis_summaries': [
+                {
+                    'axis': 'E/I',
+                    'first_count': 2,
+                    'second_count': 0,
+                },
+                {
+                    'axis': 'S/N',
+                    'first_count': 1,
+                    'second_count': 1,
+                },
+                {
+                    'axis': 'T/F',
+                    'first_count': 1,
+                    'second_count': 1,
+                },
+                {
+                    'axis': 'J/P',
+                    'first_count': 1,
+                    'second_count': 0,
+                },
+            ],
+        },
+        game_data={
+            'questions': questions,
+            'answers': selected_answers,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1177,11 +1237,16 @@ class InstantGameFlowTest(TestCase):
         self.assertContains(result_page, '나의 선택 사용설명서')
         self.assertContains(result_page, '4축 선택 나침반')
         self.assertContains(result_page, '내 기록에 저장됨')
+        self.assertContains(result_page, '결과 이미지 저장')
+        self.assertContains(result_page, '함께하기 초대')
+        self.assertContains(result_page, 'memberResultPayload')
         self.assertEqual(refreshed_page.status_code, 200)
         self.assertEqual(SavedInstantResult.objects.filter(user=user).count(), 1)
 
         saved_result = SavedInstantResult.objects.get(user=user)
         self.assertEqual(saved_result.mbti, 'ENTP')
+        self.assertEqual(len(saved_result.game_data['questions']), 7)
+        self.assertEqual(len(saved_result.game_data['answers']), 7)
         archive_page = self.client.get(reverse('games:progress'))
         self.assertContains(archive_page, saved_result.title)
         self.assertContains(archive_page, '선택에서 드러난 강점')
@@ -1733,3 +1798,204 @@ class AutoAdvanceAndUndoTest(TestCase):
             ).count(),
             6,
         )
+
+
+@override_settings(OPENAI_API_KEY='')
+class MemberServicesTest(TestCase):
+    def setUp(self) -> None:
+        self.user = get_user_model().objects.create_user(
+            username='member',
+            email='member@example.com',
+            password='A-strong-password-2026',
+        )
+        self.result = make_saved_member_result(self.user)
+
+    def test_member_hub_shows_all_exclusive_themes_and_recommendations(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('games:member_hub'))
+
+        self.assertEqual(response.status_code, 200)
+        for theme in (
+            '연애 심층편',
+            '직장 생존편',
+            '친구 관계편',
+            '여행 스타일편',
+            '소비 습관편',
+            '커플·우정 특별편',
+        ):
+            self.assertContains(response, theme)
+        self.assertContains(response, '맞춤형 게임 추천')
+        self.assertContains(response, '친구·연인과 함께하기')
+
+    def test_favorite_toggle_is_owner_only(self) -> None:
+        other = get_user_model().objects.create_user(
+            username='other-member',
+            password='A-strong-password-2026',
+        )
+        favorite_url = reverse(
+            'games:saved_instant_result_favorite',
+            kwargs={'result_id': self.result.pk},
+        )
+        self.client.force_login(other)
+        self.assertEqual(self.client.post(favorite_url).status_code, 404)
+
+        self.client.force_login(self.user)
+        response = self.client.post(favorite_url)
+        self.assertRedirects(
+            response,
+            reverse('games:progress'),
+            fetch_redirect_response=False,
+        )
+        self.result.refresh_from_db()
+        self.assertTrue(self.result.is_favorite)
+
+        self.client.post(favorite_url)
+        self.result.refresh_from_db()
+        self.assertFalse(self.result.is_favorite)
+
+    def test_choice_report_aggregates_monthly_axes_and_keywords(self) -> None:
+        previous = make_saved_member_result(
+            self.user,
+            token='b' * 32,
+            topic='친구 선택 보고서',
+            mbti='ISFP',
+        )
+        previous_month = (
+            timezone.localtime(timezone.now())
+            .replace(day=1, hour=12, minute=0, second=0, microsecond=0)
+            - timedelta(days=1)
+        )
+        SavedInstantResult.objects.filter(pk=previous.pk).update(
+            created_at=previous_month,
+            updated_at=previous_month,
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('games:choice_report'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['report']['total_results'], 2)
+        self.assertEqual(response.context['report']['current_month_count'], 1)
+        self.assertEqual(response.context['report']['previous_month_count'], 1)
+        self.assertContains(response, 'E/I · S/N · T/F · J/P 누적 나침반')
+        self.assertContains(response, '#여행')
+        self.assertContains(response, '오락용 해석')
+
+    def test_archive_exposes_favorite_and_together_actions(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('games:progress'))
+
+        self.assertContains(response, '즐겨찾기')
+        self.assertContains(response, '함께하기')
+        self.assertContains(response, reverse('games:choice_report'))
+
+
+@override_settings(OPENAI_API_KEY='')
+class TogetherChoiceFlowTest(TestCase):
+    def setUp(self) -> None:
+        self.creator = get_user_model().objects.create_user(
+            username='inviter',
+            password='A-strong-password-2026',
+        )
+        self.participant = get_user_model().objects.create_user(
+            username='friend',
+            password='A-strong-password-2026',
+        )
+        self.outsider = get_user_model().objects.create_user(
+            username='outsider',
+            password='A-strong-password-2026',
+        )
+        self.source_result = make_saved_member_result(self.creator)
+
+    def create_invite(self) -> ChoiceComparisonInvite:
+        self.client.force_login(self.creator)
+        response = self.client.post(
+            reverse(
+                'games:together_create',
+                kwargs={'result_id': self.source_result.pk},
+            )
+        )
+        invite = ChoiceComparisonInvite.objects.get(creator=self.creator)
+        self.assertRedirects(
+            response,
+            reverse('games:together_detail', kwargs={'invite_id': invite.pk}),
+            fetch_redirect_response=False,
+        )
+        return invite
+
+    def test_anonymous_invitee_sees_login_and_signup_entry(self) -> None:
+        invite = self.create_invite()
+        self.client.logout()
+
+        response = self.client.get(
+            reverse('games:together_detail', kwargs={'invite_id': invite.pk})
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '로그인하고 참여')
+        self.assertContains(response, '가입하고 참여')
+        self.assertContains(response, self.creator.username)
+
+    def test_two_members_complete_game_and_receive_compatibility(self) -> None:
+        invite = self.create_invite()
+        self.client.force_login(self.participant)
+        detail_url = reverse(
+            'games:together_detail',
+            kwargs={'invite_id': invite.pk},
+        )
+
+        response = self.client.get(detail_url)
+        self.assertRedirects(
+            response,
+            reverse(
+                'games:together_play',
+                kwargs={'invite_id': invite.pk, 'question_number': 1},
+            ),
+            fetch_redirect_response=False,
+        )
+        play_response = self.client.get(
+            reverse(
+                'games:together_play',
+                kwargs={'invite_id': invite.pk, 'question_number': 1},
+            )
+        )
+        self.assertContains(play_response, '선택하면 자동으로 다음 문항')
+
+        for question_number in range(1, 8):
+            answer_response = self.client.post(
+                reverse(
+                    'games:together_answer',
+                    kwargs={
+                        'invite_id': invite.pk,
+                        'question_number': question_number,
+                    },
+                ),
+                {'choice': 'B'},
+            )
+
+        self.assertRedirects(
+            answer_response,
+            detail_url,
+            fetch_redirect_response=False,
+        )
+        invite.refresh_from_db()
+        self.assertEqual(invite.status, ChoiceComparisonInvite.Status.COMPLETED)
+        self.assertEqual(invite.participant, self.participant)
+        self.assertEqual(invite.participant_answers, ['B'] * 7)
+        self.assertTrue(
+            SavedInstantResult.objects.filter(
+                user=self.participant,
+                game_token=invite.pk.hex,
+            ).exists()
+        )
+
+        result_page = self.client.get(detail_url)
+        self.assertContains(result_page, '우리의 결정 궁합')
+        self.assertContains(result_page, '같은 선택 3개')
+        self.assertContains(result_page, '엇갈린 선택 4개')
+        self.assertContains(result_page, '가장 크게 의견이 갈린 문항')
+
+        self.client.force_login(self.outsider)
+        self.assertEqual(self.client.get(detail_url).status_code, 404)
