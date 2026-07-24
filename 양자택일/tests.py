@@ -2325,3 +2325,53 @@ class AccountManagementTest(TestCase):
         self.assertFalse(
             get_user_model().objects.filter(pk=self.user.pk).exists()
         )
+
+
+# ---------------------------------------------------------------------------
+# 18. 서비스 UI 셸 / 접근성 / 실수 방지
+# ---------------------------------------------------------------------------
+
+@override_settings(OPENAI_API_KEY='')
+class FrontendPolishTest(TestCase):
+    def test_home_exposes_accessible_shell_and_generation_feedback(self) -> None:
+        response = self.client.get(reverse('games:index'))
+
+        self.assertContains(response, '본문으로 바로가기')
+        self.assertContains(response, '7개 맞춤 문항')
+        self.assertContains(response, '유해 콘텐츠 필터')
+        self.assertContains(response, 'id="generationOverlay"')
+        self.assertContains(response, '당신만의 질문을 만들고 있어요')
+
+    def test_play_page_exposes_keyboard_shortcuts_and_progress_copy(self) -> None:
+        self.client.post(
+            reverse('games:instant_generate'),
+            {'keywords': '여행, 친구'},
+        )
+        response = self.client.get(
+            reverse('games:instant_play', kwargs={'question_number': 1}),
+        )
+
+        self.assertContains(response, 'data-choice-shortcut="a"')
+        self.assertContains(response, 'data-choice-shortcut="b"')
+        self.assertContains(response, '1 / 7 문항')
+        self.assertContains(response, '왼쪽 선택')
+
+    def test_auth_page_explains_member_value(self) -> None:
+        response = self.client.get(reverse('games:login'))
+
+        self.assertContains(response, '결과 자동 저장')
+        self.assertContains(response, '누적 성향 리포트')
+        self.assertContains(response, '친구와 함께하기')
+
+    def test_destructive_account_forms_require_confirmation_ui(self) -> None:
+        user = get_user_model().objects.create_user(
+            username='frontend-member',
+            email='frontend@example.com',
+            password='A-strong-password-2026',
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('games:account_settings'))
+
+        self.assertContains(response, 'data-confirm-message=', count=2)
+        self.assertContains(response, 'id="siteConfirmDialog"')

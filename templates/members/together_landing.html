@@ -52,7 +52,11 @@
           <p class="small text-muted mt-3 mb-3">
             초대 링크는 참여자 한 명만 사용할 수 있으며 {{ invite.expires_at|date:"Y.m.d H:i" }}에 만료됩니다.
           </p>
-          <form method="post" action="{% url 'games:together_cancel' invite.pk %}">
+          <form
+            method="post"
+            action="{% url 'games:together_cancel' invite.pk %}"
+            data-confirm-message="이 함께하기 초대를 취소할까요? 전달한 링크는 더 이상 사용할 수 없습니다."
+          >
             {% csrf_token %}
             <button type="submit" class="btn btn-sm btn-outline-danger">이 초대 취소</button>
           </form>

@@ -47,7 +47,16 @@
   </div>
 </section>
 
-<section class="py-5">
+<nav class="member-subnav" aria-label="회원 기능 바로가기">
+  <div class="container">
+    <a href="#together"><i class="bi bi-people"></i> 함께하기</a>
+    <a href="#recommendations"><i class="bi bi-stars"></i> 맞춤 추천</a>
+    <a href="#memberThemes"><i class="bi bi-gem"></i> 전용 테마</a>
+    <a href="{% url 'games:progress' %}"><i class="bi bi-archive"></i> 아카이브</a>
+  </div>
+</nav>
+
+<section class="py-5 scroll-section" id="together">
   <div class="container">
     <div class="member-section-heading">
       <div>
@@ -102,7 +111,11 @@
         <div class="d-flex gap-1">
           <a href="{% url 'games:together_detail' invite.pk %}" class="btn btn-sm btn-outline-primary">보기</a>
           {% if invite.creator_id == user.id and invite.status == 'OPEN' %}
-          <form method="post" action="{% url 'games:together_cancel' invite.pk %}">
+          <form
+            method="post"
+            action="{% url 'games:together_cancel' invite.pk %}"
+            data-confirm-message="이 함께하기 초대를 취소할까요? 전달한 링크는 더 이상 사용할 수 없습니다."
+          >
             {% csrf_token %}
             <input type="hidden" name="next" value="{{ request.path }}">
             <button type="submit" class="btn btn-sm btn-outline-danger">취소</button>
@@ -121,7 +134,7 @@
   </div>
 </section>
 
-<section class="member-soft-section py-5">
+<section class="member-soft-section py-5 scroll-section" id="recommendations">
   <div class="container">
     <div class="member-section-heading">
       <div>
@@ -254,7 +267,7 @@
   </div>
 </section>
 
-<section class="py-5">
+<section class="py-5 scroll-section" id="memberThemes">
   <div class="container">
     <div class="member-section-heading">
       <div>

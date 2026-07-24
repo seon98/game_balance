@@ -2,12 +2,14 @@
 
 {% block title %}{{ instant_game.title }} 결과 - 양자택일{% endblock %}
 
+{% block body_class %}result-page{% endblock %}
+
 {% block content %}
-<section class="set-result-hero py-5">
+<section class="set-result-hero result-page-shell py-5">
   <div class="container">
     <div class="row justify-content-center">
       <div class="col-lg-8">
-        <div class="text-center mb-4">
+        <div class="text-center result-intro mb-4">
           <span class="badge bg-primary mb-3">{{ instant_game.title }}</span>
           <p class="eyebrow mb-2">YOUR CHOICE MBTI CHARACTER</p>
           <h1 class="display-5 fw-black mb-3">
@@ -44,7 +46,14 @@
         </div>
 
         {% if user.is_authenticated %}
-        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
+        <nav class="result-quick-nav mt-4" aria-label="상세 결과 바로가기">
+          <span>상세 결과</span>
+          <a href="#decisiveChoices"><i class="bi bi-lightning-fill"></i> 결정적 선택</a>
+          <a href="#decisionManual"><i class="bi bi-journal-check"></i> 사용설명서</a>
+          <a href="#choiceCompass"><i class="bi bi-bar-chart-steps"></i> 선택 나침반</a>
+        </nav>
+
+        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4" id="decisiveChoices">
           <div class="card-body p-4 p-md-5">
             <div class="result-section-heading mb-4">
               <span class="result-section-icon">
@@ -80,7 +89,7 @@
           </div>
         </div>
 
-        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
+        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4" id="decisionManual">
           <div class="card-body p-4 p-md-5">
             <div class="result-section-heading mb-4">
               <span class="result-section-icon manual-icon">
@@ -130,7 +139,7 @@
           </div>
         </div>
 
-        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4">
+        <div class="card result-section-card border-0 shadow-sm rounded-4 mt-4" id="choiceCompass">
           <div class="card-body p-4 p-md-5">
             <div class="result-section-heading mb-4">
               <span class="result-section-icon compass-icon">
@@ -215,13 +224,17 @@
         </div>
         {% endif %}
 
-        <div class="share-box rounded-3 p-3 mt-4 text-center">
-          <p id="shareText" class="fw-bold mb-3">
-            나는 양자택일 {{ instant_game.title }}에서 {{ mbti_result.mbti }}
-            ‘{{ mbti_result.title }}’! 당신의 선택 캐릭터는?
-          </p>
-          <button type="button" class="btn btn-outline-secondary btn-sm" id="copyBtn" onclick="copyShareText()">
-            <i class="bi bi-clipboard me-1"></i>결과 복사
+        <div class="share-box result-share-box rounded-4 p-4 mt-4">
+          <div>
+            <span class="result-share-icon"><i class="bi bi-send"></i></span>
+            <p class="eyebrow mb-1">SHARE YOUR CHARACTER</p>
+            <p id="shareText" class="fw-bold mb-0">
+              나는 양자택일 {{ instant_game.title }}에서 {{ mbti_result.mbti }}
+              ‘{{ mbti_result.title }}’! 당신의 선택 캐릭터는?
+            </p>
+          </div>
+          <button type="button" class="btn btn-outline-primary fw-bold" id="copyBtn" onclick="copyShareText()">
+            <i class="bi bi-clipboard me-1"></i>결과 문구 복사
           </button>
         </div>
 

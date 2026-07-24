@@ -3,65 +3,90 @@
 {% block title %}함께하기 {{ question_number }}번 - 양자택일{% endblock %}
 
 {% block content %}
-<section class="instant-play-section py-5">
+<section class="instant-play-page together-play-page py-5">
   <div class="container">
     <div class="row justify-content-center">
-      <div class="col-lg-9">
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-          <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3 py-2">
-            <i class="bi bi-people me-1"></i>{{ invite.creator.username }}님과 함께하기
-          </span>
-          <span class="small fw-bold text-muted">{{ question_number }} / {{ question_count }}</span>
-        </div>
-        <div class="progress game-progress mb-4" role="progressbar" aria-label="함께하기 진행률">
-          <div class="progress-bar" style="width:{% widthratio completed_count question_count 100 %}%"></div>
-        </div>
-
-        <div class="text-center mb-4">
-          <p class="eyebrow mb-2">QUESTION {{ question_number }}</p>
-          <h1 class="h2 fw-black mb-3">{{ question.title }}</h1>
-          <p class="text-muted mb-0">{{ question.description }}</p>
-        </div>
-
-        <form
-          id="instantAnswerForm"
-          method="post"
-          action="{% url 'games:together_answer' invite.pk question_number %}"
-        >
-          {% csrf_token %}
-          <input id="instantChoiceInput" type="hidden" name="choice" value="{{ selected_choice|default:'' }}">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <button type="button" class="instant-choice-card choice-a h-100" data-instant-choice="A">
-                <span class="instant-choice-code">A</span>
-                <strong>{{ question.choice_a }}</strong>
-              </button>
-            </div>
-            <div class="col-md-6">
-              <button type="button" class="instant-choice-card choice-b h-100" data-instant-choice="B">
-                <span class="instant-choice-code">B</span>
-                <strong>{{ question.choice_b }}</strong>
-              </button>
-            </div>
+      <div class="col-lg-8">
+        <div class="play-toolbar mb-4">
+          <a href="{% url 'games:member_hub' %}#together" class="play-toolbar-link">
+            <i class="bi bi-x-lg"></i><span>나가기</span>
+          </a>
+          <div class="play-toolbar-title">
+            <span>{{ invite.creator.username }}님과 함께하기</span>
+            <strong>{{ question_number }} / {{ question_count }}</strong>
           </div>
-          <p id="instantAnswerStatus" class="small text-muted text-center mt-3 mb-0">
-            선택하면 자동으로 다음 문항으로 넘어갑니다.
-          </p>
-        </form>
-
-        <div class="d-flex justify-content-between align-items-center mt-4">
           {% if previous_question_number %}
           <a
             href="{% url 'games:together_play' invite.pk previous_question_number %}"
-            class="btn btn-outline-secondary"
+            class="play-toolbar-link is-back"
+            aria-label="뒤로가기 · 이전 선택 수정"
           >
-            <i class="bi bi-arrow-left me-1"></i>이전 문항
+            <i class="bi bi-arrow-left"></i><span>이전 선택</span>
           </a>
           {% else %}
-          <span></span>
+          <span class="play-toolbar-spacer" aria-hidden="true"></span>
           {% endif %}
-          <span class="small text-muted">잘못 골랐다면 이전 문항으로 돌아가 수정할 수 있어요.</span>
         </div>
+
+        <div class="card instant-play-card border-0">
+          <div class="card-body p-4 p-md-5">
+            <div class="text-center mb-4">
+              <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary mb-3">
+                <i class="bi bi-people me-1"></i>CHOICE TOGETHER
+              </span>
+              <div class="question-step mx-auto mb-4">
+                <div class="d-flex justify-content-between small mb-2">
+                  <strong>질문 {{ question_number }}</strong>
+                  <span class="text-muted">{{ completed_count }}개 선택 완료</span>
+                </div>
+                <div class="progress" role="progressbar" aria-label="함께하기 진행률">
+                  <div class="progress-bar" style="width:{% widthratio question_number question_count 100 %}%"></div>
+                </div>
+              </div>
+              <h1 class="instant-question-title fw-black mb-3">{{ question.title }}</h1>
+              <p class="text-muted mb-0">{{ question.description }}</p>
+            </div>
+
+            <form
+              id="instantAnswerForm"
+              method="post"
+              action="{% url 'games:together_answer' invite.pk question_number %}"
+            >
+              {% csrf_token %}
+              <input id="instantChoiceInput" type="hidden" name="choice" value="{{ selected_choice|default:'' }}">
+              <div class="row g-4">
+                <div class="col-md-6">
+                  <button type="button" class="instant-choice-card choice-a h-100" data-instant-choice="A" data-choice-shortcut="a">
+                    <span class="instant-choice-code">A</span>
+                    <strong>{{ question.choice_a }}</strong>
+                  </button>
+                </div>
+                <div class="col-md-6">
+                  <button type="button" class="instant-choice-card choice-b h-100" data-instant-choice="B" data-choice-shortcut="b">
+                    <span class="instant-choice-code">B</span>
+                    <strong>{{ question.choice_b }}</strong>
+                  </button>
+                </div>
+              </div>
+              <p id="instantAnswerStatus" class="small text-primary fw-bold text-center mt-3 mb-0" role="status" aria-live="polite">
+                선택하면 자동으로 다음 문항으로 넘어갑니다.
+              </p>
+            </form>
+
+            <div class="play-keyboard-hint d-none d-md-flex">
+              <span><kbd>A</kbd> 왼쪽 선택</span>
+              <span><kbd>B</kbd> 오른쪽 선택</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-center text-muted x-small mt-4 mb-0">
+          {% if previous_question_number %}
+          잘못 골랐다면 상단의 <strong>이전 선택</strong>에서 수정할 수 있어요.
+          {% else %}
+          두 사람의 결과는 모든 문항을 완료한 뒤 공개됩니다.
+          {% endif %}
+        </p>
       </div>
     </div>
   </div>

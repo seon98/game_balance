@@ -161,7 +161,11 @@
                     </button>
                   </form>
                   {% endif %}
-                  <form method="post" action="{% url 'games:saved_instant_result_delete' result.pk %}">
+                  <form
+                    method="post"
+                    action="{% url 'games:saved_instant_result_delete' result.pk %}"
+                    data-confirm-message="이 결과 기록을 삭제할까요? 삭제한 기록은 복구할 수 없습니다."
+                  >
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{{ request.get_full_path }}">
                     <button type="submit" class="btn btn-sm btn-outline-danger">

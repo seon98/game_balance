@@ -13,21 +13,28 @@
           안전한 연결 토큰을 새로 발급했습니다. 이 문항을 다시 선택해주세요.
         </div>
         {% endif %}
-        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-          <a href="{% url 'games:index' %}#quick-play" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-search me-1"></i>새 키워드
+        <div class="play-toolbar mb-4">
+          <a href="{% url 'games:index' %}#quick-play" class="play-toolbar-link">
+            <i class="bi bi-x-lg"></i><span>게임 나가기</span>
           </a>
+          <div class="play-toolbar-title">
+            <span>{{ instant_game.title }}</span>
+            <strong>{{ question_number }} / {{ question_count }} 문항</strong>
+          </div>
           {% if previous_question_number %}
           <a
             href="{% url 'games:instant_play' previous_question_number %}"
-            class="btn btn-sm btn-outline-primary"
+            class="play-toolbar-link is-back"
+            aria-label="뒤로가기 · 이전 선택 수정"
           >
-            <i class="bi bi-arrow-left me-1"></i>뒤로가기 · 이전 선택 수정
+            <i class="bi bi-arrow-left"></i><span>이전 선택</span>
           </a>
+          {% else %}
+          <span class="play-toolbar-spacer" aria-hidden="true"></span>
           {% endif %}
         </div>
 
-        <div class="card instant-play-card border-0 shadow rounded-4">
+        <div class="card instant-play-card border-0">
           <div class="card-body p-4 p-md-5">
             <div class="text-center mb-4">
               <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary mb-3">
@@ -37,11 +44,9 @@
                 <i class="bi bi-lightning-charge me-1"></i>맞춤 게임
                 {% endif %}
               </span>
-              <p class="small text-muted mb-3">{{ instant_game.title }}</p>
-
               <div class="question-step mx-auto mb-4">
                 <div class="d-flex justify-content-between small mb-2">
-                  <strong>{{ question_number }} / {{ question_count }} 문항</strong>
+                  <strong>질문 {{ question_number }}</strong>
                   <span class="text-muted">{{ completed_count }}개 선택 완료</span>
                 </div>
                 <div
@@ -79,6 +84,7 @@
                     type="button"
                     class="choice-btn choice-btn-a w-100 h-100 p-4 p-md-5 rounded-4 border-0 shadow-sm {% if selected_choice == 'A' %}is-selected{% endif %}"
                     data-instant-choice="A"
+                    data-choice-shortcut="a"
                     aria-label="A 선택: {{ question.choice_a }}"
                   >
                     <span class="choice-code-badge badge-a mb-3">A</span>
@@ -93,6 +99,7 @@
                     type="button"
                     class="choice-btn choice-btn-b w-100 h-100 p-4 p-md-5 rounded-4 border-0 shadow-sm {% if selected_choice == 'B' %}is-selected{% endif %}"
                     data-instant-choice="B"
+                    data-choice-shortcut="b"
                     aria-label="B 선택: {{ question.choice_b }}"
                   >
                     <span class="choice-code-badge badge-b mb-3">B</span>
@@ -101,11 +108,17 @@
                 </div>
               </div>
             </form>
+
+            <div class="play-keyboard-hint d-none d-md-flex" aria-label="키보드 단축키 안내">
+              <span><kbd>A</kbd> 왼쪽 선택</span>
+              <span><kbd>B</kbd> 오른쪽 선택</span>
+            </div>
           </div>
         </div>
 
         <p class="text-center text-muted x-small mt-4 mb-0">
-          생성된 질문은 공개 게임으로 저장되지 않으며, 결과는 재미를 위한 선택 패턴 해석입니다.
+          잘못 선택했다면 상단의 <strong>이전 선택</strong>에서 바로 수정할 수 있어요.<br>
+          생성된 질문은 공개 게임으로 저장되지 않으며 결과는 오락용 해석입니다.
         </p>
       </div>
     </div>

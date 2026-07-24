@@ -65,7 +65,11 @@
                   <strong>#{{ feedback.keyword }}</strong>
                   <small>{{ feedback.get_rating_display }}</small>
                 </span>
-                <form method="post" action="{% url 'games:recommendation_feedback_delete' feedback.pk %}">
+                <form
+                  method="post"
+                  action="{% url 'games:recommendation_feedback_delete' feedback.pk %}"
+                  data-confirm-message="#{{ feedback.keyword }} 추천 설정을 초기화할까요?"
+                >
                   {% csrf_token %}
                   <input type="hidden" name="next" value="{{ request.path }}">
                   <button type="submit" class="btn btn-sm btn-outline-secondary">초기화</button>
@@ -85,13 +89,21 @@
               계정은 유지하면서 저장 결과, 함께하기 기록, 추천 학습 정보와 선호 피드백을 삭제합니다.
               이 작업은 되돌릴 수 없습니다.
             </p>
-            <form method="post" action="{% url 'games:account_clear_history' %}" class="account-danger-form">
+            <form
+              method="post"
+              action="{% url 'games:account_clear_history' %}"
+              class="account-danger-form"
+              data-confirm-message="모든 선택 기록을 삭제할까요? 계정은 유지되지만 기록은 복구할 수 없습니다."
+            >
               {% csrf_token %}
               <div>
                 <label for="{{ history_clear_form.confirmation.id_for_label }}" class="form-label small fw-bold">
                   계속하려면 ‘기록삭제’를 입력하세요
                 </label>
                 {{ history_clear_form.confirmation }}
+                {% for error in history_clear_form.confirmation.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
               </div>
               <button type="submit" class="btn btn-outline-danger fw-bold">모든 선택 기록 삭제</button>
             </form>
@@ -105,17 +117,28 @@
             <p class="text-muted">
               계정과 선택 기록, 직접 제출한 게임을 모두 삭제합니다. 탈퇴한 계정은 복구할 수 없습니다.
             </p>
-            <form method="post" action="{% url 'games:account_delete' %}" class="account-danger-form">
+            <form
+              method="post"
+              action="{% url 'games:account_delete' %}"
+              class="account-danger-form"
+              data-confirm-message="정말 회원 탈퇴할까요? 계정과 모든 기록이 영구 삭제됩니다."
+            >
               {% csrf_token %}
               <div>
                 <label for="{{ account_delete_form.password.id_for_label }}" class="form-label small fw-bold">현재 비밀번호</label>
                 {{ account_delete_form.password }}
+                {% for error in account_delete_form.password.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
               </div>
               <div>
                 <label for="{{ account_delete_form.confirmation.id_for_label }}" class="form-label small fw-bold">
                   ‘회원탈퇴’ 입력
                 </label>
                 {{ account_delete_form.confirmation }}
+                {% for error in account_delete_form.confirmation.errors %}
+                <div class="text-danger small mt-1">{{ error }}</div>
+                {% endfor %}
               </div>
               <button type="submit" class="btn btn-danger fw-bold">계정 영구 삭제</button>
             </form>

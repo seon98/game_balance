@@ -3,42 +3,6 @@
 {% block title %}양자택일 - 당신의 선택은?{% endblock %}
 {% block body_class %}home-search-page{% endblock %}
 
-{% block navigation %}
-<nav class="home-navbar">
-  <div class="container home-navbar-inner">
-    <a class="home-brand" href="{% url 'games:index' %}" aria-label="양자택일 홈">
-      <span class="home-brand-mark"><i class="bi bi-lightning-charge-fill"></i></span>
-      <span>양자택일</span>
-    </a>
-    {% if user.is_authenticated %}
-    <div class="d-flex align-items-center gap-2">
-      <a class="home-member-link" href="{% url 'games:member_hub' %}">
-        <i class="bi bi-gem"></i>
-        <span>회원 혜택</span>
-      </a>
-      <a class="home-member-link" href="{% url 'games:progress' %}">
-        <i class="bi bi-clock-history"></i>
-        <span>내 기록</span>
-      </a>
-      <span class="home-user-name">{{ user.username }}님</span>
-      <form method="post" action="{% url 'games:logout' %}">
-        {% csrf_token %}
-        <button type="submit" class="home-login-button">
-          <i class="bi bi-box-arrow-right"></i>
-          <span>로그아웃</span>
-        </button>
-      </form>
-    </div>
-    {% else %}
-    <a class="home-login-button" href="{% url 'games:login' %}">
-      <i class="bi bi-person"></i>
-      <span>로그인</span>
-    </a>
-    {% endif %}
-  </div>
-</nav>
-{% endblock %}
-
 {% block content %}
 <!-- 키워드 즉석 게임 -->
 <section class="instant-hero" id="quick-play">
@@ -52,6 +16,10 @@
   </div>
   <div class="container position-relative">
     <div class="instant-hero-content mx-auto text-center">
+      <span class="instant-kicker d-inline-flex align-items-center gap-2 mb-3">
+        <i class="bi bi-lightning-charge-fill"></i>
+        KEYWORD CHOICE GAME
+      </span>
       <h1 class="instant-hero-title fw-black mb-3">
         어떤 양자택일을<br class="d-sm-none"> 찾고 계신가요?
       </h1>
@@ -76,6 +44,9 @@
           <span>검색</span>
         </button>
       </form>
+      <p class="instant-search-helper mt-3 mb-0">
+        키워드는 최대 5개까지 입력할 수 있어요. 예: 여행, 연애, 직장
+      </p>
 
       <div class="instant-keywords mt-4" aria-label="추천 키워드">
         <span class="instant-keyword-label">추천 키워드:</span>
@@ -85,9 +56,30 @@
         </button>
         {% endfor %}
       </div>
+
+      <div class="instant-trust-row mt-4" aria-label="서비스 특징">
+        <span><i class="bi bi-check-circle-fill"></i> 7개 맞춤 문항</span>
+        <span><i class="bi bi-shield-check"></i> 유해 콘텐츠 필터</span>
+        <span><i class="bi bi-person-check"></i> 가입 없이 바로 시작</span>
+      </div>
     </div>
   </div>
 </section>
+
+<div class="generation-overlay" id="generationOverlay" hidden aria-hidden="true">
+  <div class="generation-dialog" role="status" aria-live="polite" aria-atomic="true">
+    <div class="generation-choice-mark" aria-hidden="true">
+      <span>A</span>
+      <i class="bi bi-lightning-charge-fill"></i>
+      <span>B</span>
+    </div>
+    <p class="eyebrow mb-2">CREATING YOUR GAME</p>
+    <h2 class="h3 fw-black mb-2">당신만의 질문을 만들고 있어요</h2>
+    <p class="text-muted mb-4">안전성을 확인하고, 서로 고민되는 7개의 선택을 구성합니다.</p>
+    <div class="generation-progress" aria-hidden="true"><span></span></div>
+    <p class="generation-step mb-0" id="generationStep">키워드의 재미있는 갈림길을 찾는 중…</p>
+  </div>
+</div>
 {% endblock %}
 
 {% block footer %}{% endblock %}

@@ -19,10 +19,13 @@ function onCopySuccess() {
   if (!btn) return;
   const original = btn.innerHTML;
   btn.innerHTML = '<i class="bi bi-check2 me-1"></i>복사됨!';
-  btn.classList.replace('btn-outline-secondary', 'btn-success');
+  const previousClass = btn.classList.contains('btn-outline-primary')
+    ? 'btn-outline-primary'
+    : 'btn-outline-secondary';
+  btn.classList.replace(previousClass, 'btn-success');
   setTimeout(function () {
     btn.innerHTML = original;
-    btn.classList.replace('btn-success', 'btn-outline-secondary');
+    btn.classList.replace('btn-success', previousClass);
   }, 2000);
 }
 
@@ -311,6 +314,8 @@ function initInstantSearch() {
   const form = document.getElementById('instantSearchForm');
   const input = document.getElementById('instantKeywords');
   const submitButton = document.getElementById('instantSearchButton');
+  const overlay = document.getElementById('generationOverlay');
+  const generationStep = document.getElementById('generationStep');
   const keywordButtons = document.querySelectorAll('[data-instant-keyword]');
   if (!form || !input || !submitButton) return;
 
@@ -328,6 +333,23 @@ function initInstantSearch() {
       '<span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>'
       + '<span>게임 만드는 중</span>'
     );
+    if (overlay) {
+      overlay.hidden = false;
+      overlay.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('is-generating');
+    }
+    if (generationStep) {
+      const steps = [
+        '키워드의 재미있는 갈림길을 찾는 중…',
+        '두 선택의 고민 지수를 맞추는 중…',
+        '안전한 질문인지 마지막으로 확인하는 중…'
+      ];
+      let stepIndex = 0;
+      window.setInterval(function () {
+        stepIndex = (stepIndex + 1) % steps.length;
+        generationStep.textContent = steps[stepIndex];
+      }, 1600);
+    }
   });
 }
 
@@ -353,6 +375,75 @@ function initInstantAnswer() {
       window.setTimeout(function () {
         form.submit();
       }, 180);
+    });
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (submitting || event.altKey || event.ctrlKey || event.metaKey) return;
+    const activeElement = document.activeElement;
+    if (
+      activeElement
+      && ['INPUT', 'TEXTAREA', 'SELECT'].includes(activeElement.tagName)
+    ) {
+      return;
+    }
+    const shortcut = event.key.toLowerCase();
+    if (shortcut !== 'a' && shortcut !== 'b') return;
+    const button = document.querySelector('[data-choice-shortcut="' + shortcut + '"]');
+    if (!button || button.disabled) return;
+    event.preventDefault();
+    button.click();
+  });
+}
+
+function initConfirmationForms() {
+  const dialog = document.getElementById('siteConfirmDialog');
+  const message = document.getElementById('siteConfirmMessage');
+  const forms = document.querySelectorAll('form[data-confirm-message]');
+  if (!forms.length) return;
+
+  forms.forEach(function (form) {
+    form.addEventListener('submit', function (event) {
+      if (form.dataset.confirmed === 'true') return;
+      event.preventDefault();
+      const prompt = form.dataset.confirmMessage || '이 작업을 계속할까요?';
+
+      if (!dialog || typeof dialog.showModal !== 'function') {
+        if (window.confirm(prompt)) {
+          form.dataset.confirmed = 'true';
+          form.requestSubmit();
+        }
+        return;
+      }
+
+      if (message) message.textContent = prompt;
+      dialog.returnValue = '';
+      dialog.showModal();
+      dialog.addEventListener('close', function handleClose() {
+        dialog.removeEventListener('close', handleClose);
+        if (dialog.returnValue !== 'confirm') return;
+        form.dataset.confirmed = 'true';
+        form.requestSubmit();
+      });
+    });
+  });
+}
+
+function initRecommendationGenerationForms() {
+  const forms = document.querySelectorAll(
+    'form[action$="/instant-game/generate/"]:not(#instantSearchForm)'
+  );
+  forms.forEach(function (form) {
+    form.addEventListener('submit', function () {
+      const button = form.querySelector('button[type="submit"]');
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.dataset.originalHtml = button.innerHTML;
+      button.innerHTML = (
+        '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>'
+        + '준비 중'
+      );
     });
   });
 }
@@ -511,5 +602,7 @@ document.addEventListener('DOMContentLoaded', initWelcome);
 document.addEventListener('DOMContentLoaded', initAnalysisTabs);
 document.addEventListener('DOMContentLoaded', initInstantSearch);
 document.addEventListener('DOMContentLoaded', initInstantAnswer);
+document.addEventListener('DOMContentLoaded', initConfirmationForms);
+document.addEventListener('DOMContentLoaded', initRecommendationGenerationForms);
 document.addEventListener('DOMContentLoaded', initInviteLinkCopy);
 document.addEventListener('DOMContentLoaded', initMemberResultImage);
