@@ -7,10 +7,26 @@
   <div class="row justify-content-center">
     <div class="col-lg-8">
 
-      <!-- 뒤로가기 -->
-      <a href="{% url 'games:list' %}" class="btn btn-sm btn-outline-secondary mb-4">
-        <i class="bi bi-arrow-left me-1"></i>목록으로
-      </a>
+      <!-- 플레이 이동 -->
+      <div class="play-toolbar d-flex flex-wrap justify-content-between gap-2 mb-4">
+        {% if question.game_set %}
+        <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-grid me-1"></i>문항 목록
+        </a>
+        {% if has_previous_vote %}
+        <form method="post" action="{% url 'games:game_set_undo' question.game_set.id %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-counterclockwise me-1"></i>뒤로가기 · 이전 선택 수정
+          </button>
+        </form>
+        {% endif %}
+        {% else %}
+        <a href="{% url 'games:list' %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-arrow-left me-1"></i>목록으로
+        </a>
+        {% endif %}
+      </div>
 
       <!-- 질문 제목 -->
       <div class="text-center mb-5">
@@ -25,6 +41,18 @@
         <p class="small text-muted mb-2">
           <a href="{% url 'games:game_set_detail' question.game_set.id %}" class="text-muted">{{ question.game_set.title }}</a>
         </p>
+        {% if question_count %}
+        <div class="question-step mx-auto mb-4">
+          <div class="d-flex justify-content-between small mb-2">
+            <strong>{{ question_number }} / {{ question_count }} 문항</strong>
+            <span class="text-muted">{{ completed_count }}개 선택 완료</span>
+          </div>
+          <div class="progress" role="progressbar" aria-label="현재 주제 진행률"
+               aria-valuenow="{{ completed_count }}" aria-valuemin="0" aria-valuemax="{{ question_count }}">
+            <div class="progress-bar bg-warning" style="width:{% widthratio completed_count question_count 100 %}%"></div>
+          </div>
+        </div>
+        {% endif %}
         {% endif %}
         <h1 class="fw-black" style="font-size:clamp(1.3rem,4vw,2rem); line-height:1.4">
           {{ question.title }}
@@ -33,8 +61,10 @@
         <p class="text-muted mt-2">{{ question.description }}</p>
         {% endif %}
         <p class="text-muted small mt-3">
-          <i class="bi bi-hand-index me-1"></i>하나를 선택해주세요. 선택하면 결과가 공개됩니다.
+          <i class="bi bi-hand-index me-1"></i>
+          하나를 선택하면 다음 문항으로 자동 이동합니다.
         </p>
+        <p class="small text-primary fw-bold mb-0" id="autoNextStatus" role="status" aria-live="polite"></p>
       </div>
 
       <!-- 선택지 -->
@@ -92,8 +122,20 @@
 {% block extra_js %}
 <script>
 function selectChoice(choiceId) {
+  if (window.choiceSubmitting) return;
+  window.choiceSubmitting = true;
   document.getElementById('choiceInput').value = choiceId;
-  document.getElementById('voteForm').submit();
+  document.querySelectorAll('.choice-btn').forEach(function (button) {
+    button.disabled = true;
+    if (button.dataset.choiceId === String(choiceId)) {
+      button.classList.add('is-selected');
+    }
+  });
+  const status = document.getElementById('autoNextStatus');
+  if (status) status.textContent = '선택 완료! 다음 문항으로 이동합니다…';
+  window.setTimeout(function () {
+    document.getElementById('voteForm').submit();
+  }, 180);
 }
 </script>
 {% endblock %}

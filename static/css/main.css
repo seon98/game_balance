@@ -278,6 +278,26 @@ body {
   transform: scale(0.98);
 }
 
+.choice-btn:disabled {
+  cursor: wait;
+  opacity: 0.58;
+}
+
+.choice-btn.is-selected {
+  opacity: 1;
+  outline: 4px solid #ffc107;
+  outline-offset: 0.3rem;
+  transform: scale(1.025);
+}
+
+.question-step {
+  width: min(100%, 28rem);
+}
+
+.question-step .progress {
+  height: 0.5rem;
+}
+
 .choice-btn-a {
   background: rgba(220, 53, 69, 0.06);
   border: 2px solid rgba(220, 53, 69, 0.2) !important;
@@ -518,11 +538,28 @@ body {
   font-size: 1.3rem;
 }
 
-.question-generator {
-  border: 1px solid rgba(255, 193, 7, 0.35);
+.generator-feature-card {
+  overflow: hidden;
   background:
-    radial-gradient(circle at 95% 0, rgba(255, 193, 7, 0.18), transparent 13rem),
-    #fffdf5;
+    radial-gradient(circle at 8% 0, rgba(220, 53, 69, 0.13), transparent 18rem),
+    radial-gradient(circle at 92% 0, rgba(13, 110, 253, 0.14), transparent 18rem),
+    linear-gradient(180deg, #fffdf5, #fff);
+}
+
+.generator-feature-card::before {
+  display: block;
+  height: 0.4rem;
+  background: linear-gradient(90deg, var(--color-a), #ffc107, var(--color-b));
+  content: '';
+}
+
+.generator-input-shell {
+  width: min(100%, 64rem);
+  padding: 1.25rem;
+  border: 1px solid rgba(20, 35, 80, 0.09);
+  border-radius: 1.15rem;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 0.75rem 2rem rgba(20, 35, 80, 0.07);
 }
 
 .generator-safety-note {

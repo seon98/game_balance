@@ -99,6 +99,128 @@ _QUESTION_FRAMES: tuple[tuple[str, str, str], ...] = (
     ),
 )
 
+_CATEGORY_FRAMES: dict[str, tuple[tuple[str, str, str], ...]] = {
+    '음식': (
+        (
+            '{topic}: 강렬한 맛 vs 담백한 맛',
+            '‘{topic}’는 한입부터 기억에 남는 강렬한 맛으로 즐긴다',
+            '‘{topic}’는 자주 먹어도 편안한 담백한 맛으로 즐긴다',
+        ),
+        (
+            '{topic}: 직접 만들기 vs 맛집 찾아가기',
+            '시간이 걸려도 ‘{topic}’를 직접 만들어 먹는다',
+            '직접 만들기보다 ‘{topic}’로 유명한 곳을 찾아간다',
+        ),
+        (
+            '{topic}: 최애만 반복 vs 매번 새 메뉴',
+            '‘{topic}’를 고를 때 가장 좋아하는 조합만 반복한다',
+            '‘{topic}’를 고를 때 먹어보지 않은 조합에 도전한다',
+        ),
+    ),
+    '연애': (
+        (
+            '{topic}: 자주 짧게 표현 vs 가끔 깊게 표현',
+            '‘{topic}’에 관한 마음을 짧게라도 자주 표현한다',
+            '‘{topic}’에 관한 마음을 횟수는 적어도 깊게 표현한다',
+        ),
+        (
+            '{topic}: 완벽한 계획 vs 즉흥적인 만남',
+            '‘{topic}’와 관련된 만남은 예약과 동선을 미리 정한다',
+            '‘{topic}’와 관련된 만남은 그날 분위기에 따라 정한다',
+        ),
+        (
+            '{topic}: 편안함 vs 설렘',
+            '‘{topic}’에서는 친구처럼 편안하고 안정적인 관계를 고른다',
+            '‘{topic}’에서는 만날 때마다 새롭게 설레는 관계를 고른다',
+        ),
+    ),
+    '직장': (
+        (
+            '{topic}: 높은 보상과 바쁜 일정 vs 적당한 보상과 여유',
+            '‘{topic}’와 관련해 일정이 바빠도 더 높은 보상을 선택한다',
+            '‘{topic}’와 관련해 보상이 적어도 저녁과 주말의 여유를 선택한다',
+        ),
+        (
+            '{topic}: 혼자 책임지기 vs 팀으로 협업하기',
+            '‘{topic}’ 업무는 처음부터 끝까지 혼자 책임진다',
+            '‘{topic}’ 업무는 역할을 나눠 팀으로 빠르게 해결한다',
+        ),
+        (
+            '{topic}: 자유로운 재택 vs 분리되는 출근',
+            '‘{topic}’ 업무는 장소가 자유로운 재택 방식으로 진행한다',
+            '‘{topic}’ 업무는 일과 생활이 분리되는 출근 방식으로 진행한다',
+        ),
+    ),
+    '학교': (
+        (
+            '{topic}: 발표 담당 vs 자료 정리 담당',
+            '‘{topic}’ 과제에서 사람들 앞에 서는 발표를 맡는다',
+            '‘{topic}’ 과제에서 자료 조사와 정리를 맡는다',
+        ),
+        (
+            '{topic}: 한 번의 시험 vs 꾸준한 과제',
+            '‘{topic}’ 평가는 한 번의 큰 시험으로 받는다',
+            '‘{topic}’ 평가는 매주 꾸준한 과제로 받는다',
+        ),
+        (
+            '{topic}: 두루 친한 친구들 vs 속 깊은 친구 한 명',
+            '‘{topic}’ 생활에서 여러 친구와 두루 어울린다',
+            '‘{topic}’ 생활에서 모든 고민을 나눌 친구 한 명과 지낸다',
+        ),
+    ),
+    '일상': (
+        (
+            '{topic}: 미리 끝내기 vs 마감 직전 집중',
+            '‘{topic}’ 관련 할 일은 여유가 있을 때 미리 끝낸다',
+            '‘{topic}’ 관련 할 일은 마감 직전에 집중해서 끝낸다',
+        ),
+        (
+            '{topic}: 계획 있는 주말 vs 눈 뜨고 정하는 주말',
+            '주말의 ‘{topic}’ 일정은 금요일까지 미리 정한다',
+            '주말의 ‘{topic}’ 일정은 당일 기분에 따라 정한다',
+        ),
+        (
+            '{topic}: 매일 작은 만족 vs 가끔 큰 이벤트',
+            '‘{topic}’로 매일 작고 꾸준한 만족을 만든다',
+            '‘{topic}’를 모아두었다가 가끔 큰 이벤트로 즐긴다',
+        ),
+    ),
+    '야구': (
+        (
+            '{topic}: 강한 공격력 vs 빈틈없는 수비력',
+            '‘{topic}’에서는 실점해도 더 많이 득점하는 공격력을 고른다',
+            '‘{topic}’에서는 득점이 적어도 실수를 막는 수비력을 고른다',
+        ),
+        (
+            '{topic}: 압도적인 스타 한 명 vs 고른 선수층',
+            '‘{topic}’에서는 경기를 바꿀 스타 선수 한 명을 고른다',
+            '‘{topic}’에서는 누구나 제 몫을 하는 균형 잡힌 팀을 고른다',
+        ),
+        (
+            '{topic}: 연장 끝 역전패 vs 도착 직후 우천 취소',
+            '‘{topic}’ 경기를 끝까지 봤지만 연장전에서 역전패한다',
+            '‘{topic}’ 경기장에 도착하자마자 비로 경기가 취소된다',
+        ),
+    ),
+    '개발자': (
+        (
+            '{topic}: 빠른 출시 vs 높은 완성도',
+            '‘{topic}’ 기능은 핵심만 완성해 빠르게 출시한다',
+            '‘{topic}’ 기능은 시간이 걸려도 완성도를 높여 출시한다',
+        ),
+        (
+            '{topic}: 최신 기술 도전 vs 익숙한 기술 안정성',
+            '‘{topic}’에는 학습이 필요해도 최신 기술을 사용한다',
+            '‘{topic}’에는 새롭지 않아도 익숙하고 안정적인 기술을 사용한다',
+        ),
+        (
+            '{topic}: 완벽한 문서 vs 촘촘한 테스트',
+            '‘{topic}’에는 누구나 이해할 수 있는 설명 문서를 먼저 만든다',
+            '‘{topic}’에는 오류를 빠르게 찾는 자동 테스트를 먼저 만든다',
+        ),
+    ),
+}
+
 
 def generate_question_drafts(
     *,
@@ -111,21 +233,32 @@ def generate_question_drafts(
     if not keywords:
         raise ValueError('한 개 이상의 키워드가 필요합니다.')
 
-    frames = random.SystemRandom().sample(_QUESTION_FRAMES, count)
     drafts: list[QuestionDraft] = []
+    if len(keywords) > 1:
+        first, second = keywords[0], keywords[1]
+        drafts.append(QuestionDraft(
+            title=f'{first}에 집중하기 vs {second}에 집중하기',
+            description=f'{category_name} 주제에서 두 키워드 중 더 중요한 쪽을 선택해보세요.',
+            choice_a=f'이번 선택에서는 ‘{first}’에 시간과 관심을 집중한다',
+            choice_b=f'이번 선택에서는 ‘{second}’에 시간과 관심을 집중한다',
+        ))
+
+    frame_pool = _QUESTION_FRAMES + _CATEGORY_FRAMES.get(category_name, ())
+    frames = random.SystemRandom().sample(frame_pool, count - len(drafts))
     for index, (title, choice_a, choice_b) in enumerate(frames):
         topic = keywords[index % len(keywords)]
-        draft = QuestionDraft(
+        drafts.append(QuestionDraft(
             title=title.format(topic=topic),
             description=f'{category_name} 주제에서 ‘{topic}’에 관한 취향을 선택해보세요.',
             choice_a=choice_a.format(topic=topic),
             choice_b=choice_b.format(topic=topic),
-        )
+        ))
+
+    for draft in drafts:
         for text in asdict(draft).values():
             validate_safe_text(text)
             if requires_reference(text):
                 raise ValidationError('검증이 필요한 표현은 자동 문항으로 만들 수 없습니다.')
-        drafts.append(draft)
 
     keyword_label = ' · '.join(keywords[:3])
     return {

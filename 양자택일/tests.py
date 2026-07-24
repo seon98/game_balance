@@ -631,7 +631,8 @@ class QuestionDraftGenerationTest(TestCase):
         response = self.client.get(reverse('games:create'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, '키워드로 질문 만들기')
+        self.assertContains(response, '어떤 주제로 만들까요?')
+        self.assertContains(response, '주제 키워드')
         self.assertContains(response, self.url)
 
     def test_keywords_generate_exact_safe_draft_count_without_saving(self) -> None:
@@ -647,6 +648,10 @@ class QuestionDraftGenerationTest(TestCase):
         payload = response.json()
         self.assertEqual(len(payload['drafts']), 10)
         self.assertEqual(len({draft['title'] for draft in payload['drafts']}), 10)
+        self.assertEqual(
+            payload['drafts'][0]['title'],
+            '여행에 집중하기 vs 친구에 집중하기',
+        )
         for draft in payload['drafts']:
             self.assertTrue(draft['title'])
             self.assertTrue(draft['choice_a'])
@@ -948,4 +953,134 @@ class GameSetResultTest(TestCase):
                 kwargs={'game_set_id': self.game_set.pk},
             ),
             fetch_redirect_response=False,
+        )
+
+
+class AutoAdvanceAndUndoTest(TestCase):
+    def setUp(self) -> None:
+        self.creator = get_user_model().objects.create_user(
+            username='flow-maker',
+            password='A-strong-password-2026',
+        )
+        self.reviewer = get_user_model().objects.create_superuser(
+            username='flow-reviewer',
+            email='flow-reviewer@example.com',
+            password='A-strong-password-2026',
+        )
+        self.category = Category.objects.create(name='자동 진행', slug='auto-flow')
+        self.game_set = make_user_game_set(self.creator, self.category)
+        self.game_set.approve(self.reviewer)
+        self.questions = list(self.game_set.questions.order_by('pk'))
+
+        session = self.client.session
+        session.save()
+        self.session_key = session.session_key
+
+    def test_vote_automatically_advances_to_next_question(self) -> None:
+        first, second = self.questions[:2]
+
+        response = self.client.post(
+            reverse('games:vote', kwargs={'question_id': first.pk}),
+            {'choice': first.choices.get(code=Choice.Code.A).pk},
+        )
+
+        self.assertRedirects(
+            response,
+            reverse('games:detail', kwargs={'question_id': second.pk}),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(
+            Vote.objects.filter(question=first, session_key=self.session_key).count(),
+            1,
+        )
+
+    def test_next_question_shows_progress_and_back_button(self) -> None:
+        first, second = self.questions[:2]
+        process_vote(
+            first,
+            first.choices.get(code=Choice.Code.A),
+            session_key=self.session_key,
+        )
+
+        response = self.client.get(
+            reverse('games:detail', kwargs={'question_id': second.pk}),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['question_number'], 2)
+        self.assertEqual(response.context['question_count'], 7)
+        self.assertEqual(response.context['completed_count'], 1)
+        self.assertContains(response, '뒤로가기 · 이전 선택 수정')
+
+    def test_back_button_undoes_vote_count_and_allows_reselection(self) -> None:
+        first, second = self.questions[:2]
+        choice_a = first.choices.get(code=Choice.Code.A)
+        choice_b = first.choices.get(code=Choice.Code.B)
+        process_vote(first, choice_a, session_key=self.session_key)
+
+        undo_response = self.client.post(
+            reverse(
+                'games:game_set_undo',
+                kwargs={'game_set_id': self.game_set.pk},
+            ),
+        )
+
+        self.assertRedirects(
+            undo_response,
+            reverse('games:detail', kwargs={'question_id': first.pk}),
+            fetch_redirect_response=False,
+        )
+        self.assertFalse(
+            Vote.objects.filter(question=first, session_key=self.session_key).exists()
+        )
+        choice_a.refresh_from_db()
+        self.assertEqual(choice_a.vote_count, 0)
+
+        reselection_response = self.client.post(
+            reverse('games:vote', kwargs={'question_id': first.pk}),
+            {'choice': choice_b.pk},
+        )
+        self.assertRedirects(
+            reselection_response,
+            reverse('games:detail', kwargs={'question_id': second.pk}),
+            fetch_redirect_response=False,
+        )
+        choice_b.refresh_from_db()
+        self.assertEqual(choice_b.vote_count, 1)
+
+    def test_completed_result_can_return_to_last_choice(self) -> None:
+        for question in self.questions:
+            process_vote(
+                question,
+                question.choices.get(code=Choice.Code.A),
+                session_key=self.session_key,
+            )
+
+        result_response = self.client.get(
+            reverse(
+                'games:game_set_result',
+                kwargs={'game_set_id': self.game_set.pk},
+            ),
+        )
+        self.assertContains(result_response, '마지막 선택 수정')
+
+        undo_response = self.client.post(
+            reverse(
+                'games:game_set_undo',
+                kwargs={'game_set_id': self.game_set.pk},
+            ),
+        )
+
+        last_question = self.questions[-1]
+        self.assertRedirects(
+            undo_response,
+            reverse('games:detail', kwargs={'question_id': last_question.pk}),
+            fetch_redirect_response=False,
+        )
+        self.assertEqual(
+            Vote.objects.filter(
+                question__game_set=self.game_set,
+                session_key=self.session_key,
+            ).count(),
+            6,
         )

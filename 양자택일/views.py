@@ -32,6 +32,7 @@ from .services import (
     build_result,
     get_grade,
     process_vote,
+    undo_last_vote,
 )
 
 
@@ -121,7 +122,23 @@ def _next_unplayed_question(
     questions = _public_questions().exclude(pk__in=completed_ids)
     if game_set is not None:
         questions = questions.filter(game_set=game_set)
+        return questions.order_by('pk').first()
     return questions.order_by('?').first()
+
+
+def _redirect_after_vote(
+    request: HttpRequest,
+    question: Question,
+) -> HttpResponse:
+    if question.game_set:
+        next_question = _next_unplayed_question(request, question.game_set)
+        if next_question is not None:
+            return redirect('games:detail', question_id=next_question.pk)
+        return redirect(
+            'games:game_set_result',
+            game_set_id=question.game_set_id,
+        )
+    return redirect('games:result', question_id=question.pk)
 
 
 # ---------------------------------------------------------------------------
@@ -241,13 +258,38 @@ class QuestionDetailView(View):
                 session_key=session_key,
             ).exists()
             if already_voted:
-                return redirect('games:result', question_id=question_id)
+                return _redirect_after_vote(request, question)
 
         choices = list(question.choices.all())
+        question_number = None
+        question_count = None
+        completed_count = 0
+        has_previous_vote = False
+        if question.game_set:
+            question_ids = list(
+                _public_questions()
+                .filter(game_set=question.game_set)
+                .order_by('pk')
+                .values_list('pk', flat=True)
+            )
+            question_count = len(question_ids)
+            if question.pk in question_ids:
+                question_number = question_ids.index(question.pk) + 1
+            if session_key:
+                completed_count = Vote.objects.filter(
+                    session_key=session_key,
+                    question_id__in=question_ids,
+                ).count()
+                has_previous_vote = completed_count > 0
+
         return render(request, 'games/detail.html', {
             'question': question,
             'choices': choices,
             'categories': Category.objects.all(),
+            'question_number': question_number,
+            'question_count': question_count,
+            'completed_count': completed_count,
+            'has_previous_vote': has_previous_vote,
         })
 
 
@@ -275,7 +317,7 @@ class VoteView(View):
             .first()
         )
         if existing_vote is not None:
-            return redirect('games:result', question_id=question_id)
+            return _redirect_after_vote(request, question)
 
         form = VoteForm(request.POST, question=question)
         if not form.is_valid():
@@ -310,16 +352,7 @@ class VoteView(View):
 
         request.session[_result_session_key(question_id)] = dataclasses.asdict(result)
 
-        if (
-            question.game_set
-            and _next_unplayed_question(request, question.game_set) is None
-        ):
-            return redirect(
-                'games:game_set_result',
-                game_set_id=question.game_set_id,
-            )
-
-        return redirect('games:result', question_id=question_id)
+        return _redirect_after_vote(request, question)
 
 
 # ---------------------------------------------------------------------------
@@ -701,6 +734,28 @@ class GameSetStartView(View):
 
         messages.info(request, '공개된 질문이 없습니다.')
         return redirect('games:game_set_detail', game_set_id=game_set.pk)
+
+
+class GameSetUndoLastVoteView(View):
+    def post(self, request: HttpRequest, game_set_id: int) -> HttpResponse:
+        game_set = get_object_or_404(
+            GameSet,
+            pk=game_set_id,
+            status=GameSet.Status.APPROVED,
+        )
+        session_key = request.session.session_key
+        question_id = (
+            undo_last_vote(game_set=game_set, session_key=session_key)
+            if session_key
+            else None
+        )
+        if question_id is None:
+            messages.info(request, '수정할 이전 선택이 없습니다.')
+            return redirect('games:game_set_detail', game_set_id=game_set.pk)
+
+        request.session.pop(_result_session_key(question_id), None)
+        messages.info(request, '이전 선택을 취소했습니다. 다시 선택해주세요.')
+        return redirect('games:detail', question_id=question_id)
 
 
 class GameSetResultView(TemplateView):

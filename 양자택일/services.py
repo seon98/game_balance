@@ -8,7 +8,7 @@ from typing import Any
 from django.db import transaction
 from django.db.models import F
 
-from .models import Choice, Question, ResultGrade, ResultTemplate, Vote
+from .models import Choice, GameSet, Question, ResultGrade, ResultTemplate, Vote
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +317,30 @@ def process_vote(
                 vote_count=F('vote_count') + 1
             )
     return vote, created
+
+
+@transaction.atomic
+def undo_last_vote(*, game_set: GameSet, session_key: str) -> int | None:
+    vote = (
+        Vote.objects
+        .select_for_update()
+        .filter(
+            question__game_set=game_set,
+            session_key=session_key,
+        )
+        .order_by('-created_at', '-pk')
+        .first()
+    )
+    if vote is None:
+        return None
+
+    question_id = vote.question_id
+    Choice.objects.filter(
+        pk=vote.choice_id,
+        vote_count__gt=0,
+    ).update(vote_count=F('vote_count') - 1)
+    vote.delete()
+    return question_id
 
 
 def build_result(

@@ -37,6 +37,11 @@ urlpatterns = [
         views.GameSetResultView.as_view(),
         name='game_set_result',
     ),
+    path(
+        'topics/<int:game_set_id>/undo/',
+        views.GameSetUndoLastVoteView.as_view(),
+        name='game_set_undo',
+    ),
     path('accounts/signup/', views.SignupView.as_view(), name='signup'),
     path(
         'accounts/login/',

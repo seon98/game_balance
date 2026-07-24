@@ -28,6 +28,65 @@
           </div>
           {% endif %}
 
+          <div class="card generator-feature-card border-0 shadow rounded-4 mb-4">
+            <div class="card-body p-4 p-md-5 text-center">
+              <span class="badge bg-warning text-dark mb-3">
+                <i class="bi bi-stars me-1"></i>STEP 1 · 키워드 자동 생성
+              </span>
+              <h2 class="h3 fw-black mb-2">어떤 주제로 만들까요?</h2>
+              <p class="text-muted mb-4">
+                중앙 입력창에 주제 키워드를 넣으면 서로 다른 관점의 A/B 질문을 7~10개 채워드립니다.
+              </p>
+              <div class="generator-input-shell mx-auto text-start">
+                <div class="row g-3 align-items-end">
+                  <div class="col-md-3">
+                    <label for="{{ form.category.id_for_label }}" class="form-label small fw-bold">{{ form.category.label }}</label>
+                    {{ form.category }}
+                    {% for error in form.category.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
+                  </div>
+                  <div class="col-md-5">
+                    <label for="draftKeywords" class="form-label small fw-bold">주제 키워드</label>
+                    <input
+                      type="text"
+                      class="form-control form-control-lg"
+                      id="draftKeywords"
+                      maxlength="160"
+                      placeholder="예: 여행, 친구, 즉흥"
+                      autocomplete="off"
+                    >
+                  </div>
+                  <div class="col-5 col-md-2">
+                    <label for="draftCount" class="form-label small fw-bold">문항 수</label>
+                    <select class="form-select form-select-lg" id="draftCount">
+                      <option value="7" selected>7문항</option>
+                      <option value="8">8문항</option>
+                      <option value="9">9문항</option>
+                      <option value="10">10문항</option>
+                    </select>
+                  </div>
+                  <div class="col-7 col-md-2">
+                    <button
+                      type="button"
+                      class="btn btn-dark btn-lg w-100 fw-bold"
+                      id="generateQuestions"
+                      data-generate-url="{% url 'games:generate_drafts' %}"
+                    >
+                      <i class="bi bi-magic me-1"></i>자동 생성
+                    </button>
+                  </div>
+                </div>
+                <div class="d-flex flex-wrap justify-content-between gap-2 mt-3">
+                  <p class="small mb-0 generator-status" id="generatorStatus" role="status" aria-live="polite">
+                    쉼표로 최대 5개까지 입력하세요. 같은 키워드도 다시 생성하면 다른 조합이 나옵니다.
+                  </p>
+                  <span class="generator-safety-note">
+                    <i class="bi bi-shield-check me-1"></i>생성·제출 단계 이중 검사
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="policy-card card border-0 rounded-4 mb-4">
             <div class="card-body p-4">
               <div class="d-flex gap-3">
@@ -46,19 +105,14 @@
 
           <div class="card border-0 shadow-sm rounded-4 mb-4">
             <div class="card-body p-4 p-md-5">
-              <div class="section-number mb-3">1</div>
+              <div class="section-number mb-3">2</div>
               <h2 class="h4 fw-bold mb-4">주제 정보</h2>
 
               <div class="row g-3">
-                <div class="col-md-8">
+                <div class="col-12">
                   <label for="{{ form.title.id_for_label }}" class="form-label fw-bold">{{ form.title.label }}</label>
                   {{ form.title }}
                   {% for error in form.title.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
-                </div>
-                <div class="col-md-4">
-                  <label for="{{ form.category.id_for_label }}" class="form-label fw-bold">{{ form.category.label }}</label>
-                  {{ form.category }}
-                  {% for error in form.category.errors %}<div class="text-danger small mt-1">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="col-12">
                   <label for="{{ form.description.id_for_label }}" class="form-label fw-bold">{{ form.description.label }}</label>
@@ -85,66 +139,13 @@
             <div class="card-body p-4 p-md-5">
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
                 <div>
-                  <div class="section-number mb-3">2</div>
+                  <div class="section-number mb-3">3</div>
                   <h2 class="h4 fw-bold mb-1">질문 구성</h2>
                   <p class="text-muted small mb-0">최소 7개, 최대 10개까지 등록할 수 있습니다.</p>
                 </div>
                 <div class="question-counter">
                   <strong id="activeQuestionCount">7</strong><span> / 10문항</span>
                 </div>
-              </div>
-
-              <div class="question-generator rounded-4 p-4 mb-4">
-                <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 mb-3">
-                  <div>
-                    <span class="badge bg-warning-subtle text-warning-emphasis mb-2">
-                      <i class="bi bi-stars me-1"></i>자동 초안
-                    </span>
-                    <h3 class="h5 fw-bold mb-1">키워드로 질문 만들기</h3>
-                    <p class="small text-muted mb-0">
-                      키워드를 입력하면 안전한 가상 상황의 A/B 문항을 자동으로 채워드립니다.
-                    </p>
-                  </div>
-                  <span class="generator-safety-note">
-                    <i class="bi bi-shield-check me-1"></i>생성 후 안전 필터 재검사
-                  </span>
-                </div>
-                <div class="row g-2 align-items-end">
-                  <div class="col-lg-7">
-                    <label for="draftKeywords" class="form-label small fw-bold">키워드</label>
-                    <input
-                      type="text"
-                      class="form-control"
-                      id="draftKeywords"
-                      maxlength="160"
-                      placeholder="예: 여행, 친구, 즉흥"
-                      autocomplete="off"
-                    >
-                    <div class="form-text">쉼표로 구분해 최대 5개까지 입력할 수 있습니다.</div>
-                  </div>
-                  <div class="col-sm-4 col-lg-2">
-                    <label for="draftCount" class="form-label small fw-bold">문항 수</label>
-                    <select class="form-select" id="draftCount">
-                      <option value="7" selected>7문항</option>
-                      <option value="8">8문항</option>
-                      <option value="9">9문항</option>
-                      <option value="10">10문항</option>
-                    </select>
-                  </div>
-                  <div class="col-sm-8 col-lg-3">
-                    <button
-                      type="button"
-                      class="btn btn-dark w-100 fw-bold"
-                      id="generateQuestions"
-                      data-generate-url="{% url 'games:generate_drafts' %}"
-                    >
-                      <i class="bi bi-magic me-1"></i>질문 자동 생성
-                    </button>
-                  </div>
-                </div>
-                <p class="small mb-0 mt-3 generator-status" id="generatorStatus" role="status" aria-live="polite">
-                  생성된 내용은 초안입니다. 직접 확인하고 자유롭게 수정한 뒤 제출해주세요.
-                </p>
               </div>
 
               {{ question_formset.management_form }}
