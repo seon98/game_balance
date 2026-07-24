@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+
+{% block title %}결과 - {{ question.title }} - 밸런스게임{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+
+      <!-- 뒤로가기 -->
+      <a href="{% url 'games:list' %}" class="btn btn-sm btn-outline-secondary mb-4">
+        <i class="bi bi-arrow-left me-1"></i>목록으로
+      </a>
+
+      <!-- 질문 제목 -->
+      <div class="text-center mb-4">
+        {% if question.category %}
+        <span class="badge bg-primary mb-2">{{ question.category.name }}</span>
+        {% endif %}
+        <h1 class="h4 fw-bold" style="line-height:1.4">{{ question.title }}</h1>
+      </div>
+
+      <!-- 결과 카드 -->
+      <div class="card border-0 shadow-sm rounded-4 mb-4 result-card">
+        <div class="card-body p-4 p-md-5">
+
+          <!-- 선택한 답변 -->
+          <div class="text-center mb-4">
+            <p class="text-muted small mb-1">나의 선택</p>
+            <span class="badge fs-6 px-4 py-2 {% if result.choice_code == 'A' %}bg-danger{% else %}bg-primary{% endif %}">
+              {{ result.choice_text }}
+            </span>
+          </div>
+
+          <!-- 희귀도 배지 -->
+          <div class="text-center mb-3">
+            <span class="rarity-badge grade-{{ result.grade|lower }}">
+              {{ result.grade_display }}
+            </span>
+          </div>
+
+          <!-- 결과 제목 -->
+          <h2 class="text-center fw-black mb-2" style="font-size:clamp(1.2rem,4vw,1.6rem); line-height:1.3">
+            {{ result.title }}
+          </h2>
+
+          <!-- 한 줄 요약 -->
+          <p class="text-center text-muted mb-4">{{ result.summary }}</p>
+
+          <!-- 재미있는 해석 -->
+          <div class="result-description bg-light rounded-3 p-4 mb-4">
+            <p class="mb-0" style="line-height:1.8">{{ result.description }}</p>
+          </div>
+
+          <!-- 키워드 -->
+          {% if result.keywords %}
+          <div class="text-center mb-4">
+            {% for keyword in result.keywords %}
+            <span class="badge bg-secondary bg-opacity-15 text-secondary border me-1 mb-1 px-3 py-2">
+              #{{ keyword }}
+            </span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <!-- 투표 결과 바 -->
+          <div class="mb-4">
+            {% for choice in choices %}
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-1">
+                <span class="fw-bold small {% if choice.code == 'A' %}text-danger{% else %}text-primary{% endif %}">
+                  <span class="badge {% if choice.code == 'A' %}bg-danger{% else %}bg-primary{% endif %} me-1">{{ choice.code }}</span>
+                  {{ choice.text|truncatechars:30 }}
+                  {% if choice.text == result.choice_text %}
+                  <i class="bi bi-check-circle-fill text-success ms-1" title="내 선택"></i>
+                  {% endif %}
+                </span>
+                <span class="fw-bold {% if choice.code == 'A' %}text-danger{% else %}text-primary{% endif %}">
+                  {{ choice.vote_percentage }}%
+                </span>
+              </div>
+              <div class="progress" style="height:10px; border-radius:5px;" role="progressbar"
+                   aria-valuenow="{{ choice.vote_percentage }}" aria-valuemin="0" aria-valuemax="100"
+                   aria-label="{{ choice.code }} 선택 비율 {{ choice.vote_percentage }}%">
+                <div class="progress-bar {% if choice.code == 'A' %}bg-danger{% else %}bg-primary{% endif %}"
+                     style="width:{{ choice.vote_percentage }}%"></div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <!-- 전체 참여자 수 -->
+          <p class="text-center text-muted small mb-4">
+            <i class="bi bi-people me-1"></i>총 <strong>{{ result.total_votes }}</strong>명 참여
+          </p>
+
+          <!-- 공유 문구 -->
+          <div class="share-box rounded-3 p-3 mb-4 text-center">
+            <p class="fw-bold mb-2 text-muted small">공유 문구</p>
+            <p id="shareText" class="fw-bold mb-3" style="font-size:1.05rem">
+              {{ result.share_text }}
+            </p>
+            <button
+              type="button"
+              class="btn btn-outline-secondary btn-sm"
+              id="copyBtn"
+              onclick="copyShareText()"
+              aria-label="결과 문구 복사"
+            >
+              <i class="bi bi-clipboard me-1"></i>결과 복사
+            </button>
+          </div>
+
+          <!-- 다시 선택 불가 안내 -->
+          <div class="alert alert-info small text-center mb-0" role="alert">
+            <i class="bi bi-info-circle me-1"></i>
+            같은 질문에는 다시 투표할 수 없어요. 다음 게임을 즐겨보세요!
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 오락용 안내 -->
+      <p class="text-center text-muted x-small mb-4">
+        이 결과는 재미를 위한 콘텐츠이며 실제 성격이나 심리 상태를 진단하지 않습니다.
+      </p>
+
+      <!-- 이동 버튼 -->
+      <div class="d-flex flex-wrap justify-content-center gap-3">
+        {% if next_question %}
+        <a href="{% url 'games:detail' next_question.id %}" class="btn btn-warning fw-bold px-4">
+          <i class="bi bi-arrow-right-circle me-2"></i>다음 랜덤 게임
+        </a>
+        {% else %}
+        <a href="{% url 'games:random' %}" class="btn btn-warning fw-bold px-4">
+          <i class="bi bi-shuffle me-2"></i>다른 게임 하기
+        </a>
+        {% endif %}
+        <a href="{% url 'games:list' %}" class="btn btn-outline-secondary px-4">
+          <i class="bi bi-grid me-2"></i>게임 목록
+        </a>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyShareText() {
+  const text = document.getElementById('shareText').innerText;
+  navigator.clipboard.writeText(text).then(function() {
+    const btn = document.getElementById('copyBtn');
+    const original = btn.innerHTML;
+    btn.innerHTML = '<i class="bi bi-check2 me-1"></i>복사됨!';
+    btn.classList.replace('btn-outline-secondary', 'btn-success');
+    setTimeout(function() {
+      btn.innerHTML = original;
+      btn.classList.replace('btn-success', 'btn-outline-secondary');
+    }, 2000);
+  }).catch(function() {
+    alert('클립보드 복사에 실패했습니다. 직접 선택해서 복사해주세요.');
+  });
+}
+</script>
+{% endblock %}

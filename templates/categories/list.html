@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ category.name }} - 밸런스게임{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{% url 'games:list' %}">전체 게임</a></li>
+          <li class="breadcrumb-item active" aria-current="page">{{ category.name }}</li>
+        </ol>
+      </nav>
+      <h1 class="h3 fw-bold mb-0">
+        <i class="bi bi-tag me-2 text-primary"></i>{{ category.name }}
+      </h1>
+    </div>
+    <a href="{% url 'games:random' %}" class="btn btn-warning btn-sm fw-bold">
+      <i class="bi bi-shuffle me-1"></i>랜덤 게임
+    </a>
+  </div>
+
+  <!-- 카테고리 필터 -->
+  {% if categories %}
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{% url 'games:list' %}" class="btn btn-outline-primary btn-sm rounded-pill">전체</a>
+    {% for cat in categories %}
+    <a href="{% url 'games:category' cat.slug %}"
+       class="btn btn-sm rounded-pill {% if cat.slug == category.slug %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      {{ cat.name }}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if questions %}
+  <div class="row g-4">
+    {% for question in questions %}
+    <div class="col-sm-6 col-lg-4">
+      <a href="{% url 'games:detail' question.id %}" class="text-decoration-none">
+        <div class="card game-card h-100 shadow-sm border-0">
+          <div class="card-body">
+            <h5 class="card-title fw-bold text-dark mb-3" style="font-size:0.95rem; line-height:1.4">
+              {{ question.title }}
+            </h5>
+            <div class="d-flex gap-2 align-items-center">
+              {% for choice in question.choices.all %}
+                {% if choice.code == 'A' %}
+                <span class="choice-pill choice-a flex-fill text-center small">{{ choice.text|truncatechars:18 }}</span>
+                {% endif %}
+              {% endfor %}
+              <span class="vs-badge fw-black text-muted small">VS</span>
+              {% for choice in question.choices.all %}
+                {% if choice.code == 'B' %}
+                <span class="choice-pill choice-b flex-fill text-center small">{{ choice.text|truncatechars:18 }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+          <div class="card-footer bg-transparent border-0 pt-0">
+            <small class="text-muted">
+              <i class="bi bi-people me-1"></i>{{ question.total_votes }}명 참여
+            </small>
+          </div>
+        </div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+  <nav class="mt-5" aria-label="페이지 이동">
+    <ul class="pagination justify-content-center">
+      {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.previous_page_number }}" aria-label="이전">
+          <span aria-hidden="true">&laquo;</span>
+        </a>
+      </li>
+      {% endif %}
+      {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+        <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+        {% endif %}
+      {% endfor %}
+      {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?page={{ page_obj.next_page_number }}" aria-label="다음">
+          <span aria-hidden="true">&raquo;</span>
+        </a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-emoji-smile display-3 d-block mb-3"></i>
+    <p>이 카테고리에는 아직 게임이 없어요.</p>
+    <a href="{% url 'games:list' %}" class="btn btn-outline-primary">전체 목록 보기</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

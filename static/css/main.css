@@ -1,0 +1,193 @@
+/* ===== 전역 ===== */
+:root {
+  --color-a: #dc3545;
+  --color-b: #0d6efd;
+  --choice-radius: 1.25rem;
+}
+
+body {
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
+.x-small { font-size: 0.75rem; }
+
+/* ===== 히어로 섹션 ===== */
+.hero-section {
+  background: linear-gradient(135deg, #1a237e 0%, #0d47a1 50%, #1565c0 100%);
+  padding: 5rem 0;
+}
+
+/* ===== 게임 카드 ===== */
+.game-card {
+  border-radius: 1rem !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  cursor: pointer;
+}
+
+.game-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.12) !important;
+}
+
+/* ===== 선택지 필 ===== */
+.choice-pill {
+  display: block;
+  padding: 0.35rem 0.5rem;
+  border-radius: 2rem;
+  font-weight: 600;
+  line-height: 1.3;
+  word-break: keep-all;
+}
+
+.choice-pill.choice-a {
+  background: rgba(220, 53, 69, 0.1);
+  color: var(--color-a);
+  border: 1px solid rgba(220, 53, 69, 0.25);
+}
+
+.choice-pill.choice-b {
+  background: rgba(13, 110, 253, 0.1);
+  color: var(--color-b);
+  border: 1px solid rgba(13, 110, 253, 0.25);
+}
+
+.vs-badge {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+}
+
+/* ===== 선택지 버튼 (detail 페이지) ===== */
+.choice-btn {
+  background: #f8f9fa;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+
+.choice-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 1rem 2.5rem rgba(0, 0, 0, 0.12) !important;
+}
+
+.choice-btn:active {
+  transform: scale(0.98);
+}
+
+.choice-btn-a {
+  background: rgba(220, 53, 69, 0.06);
+  border: 2px solid rgba(220, 53, 69, 0.2) !important;
+}
+
+.choice-btn-a:hover {
+  background: rgba(220, 53, 69, 0.12);
+  border-color: rgba(220, 53, 69, 0.5) !important;
+}
+
+.choice-btn-b {
+  background: rgba(13, 110, 253, 0.06);
+  border: 2px solid rgba(13, 110, 253, 0.2) !important;
+}
+
+.choice-btn-b:hover {
+  background: rgba(13, 110, 253, 0.12);
+  border-color: rgba(13, 110, 253, 0.5) !important;
+}
+
+.choice-code-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+.choice-code-badge.badge-a { background: var(--color-a); }
+.choice-code-badge.badge-b { background: var(--color-b); }
+
+/* ===== VS 원 ===== */
+.vs-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: #e9ecef;
+  font-size: 0.8rem;
+  font-weight: 900;
+  color: #6c757d;
+  border: 2px solid #dee2e6;
+}
+
+/* ===== 결과 카드 ===== */
+.result-card {
+  border-radius: 1.25rem !important;
+}
+
+.result-description {
+  border-left: 4px solid #0d6efd;
+  line-height: 1.8;
+}
+
+.share-box {
+  background: #f0f4ff;
+  border: 1px dashed #91adf5;
+}
+
+/* ===== 희귀도 배지 ===== */
+.rarity-badge {
+  display: inline-block;
+  padding: 0.45rem 1.2rem;
+  border-radius: 2rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.04em;
+}
+
+.grade-legendary_minority {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.45);
+}
+
+.grade-rare {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
+}
+
+.grade-minority {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #fff;
+}
+
+.grade-balanced {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+}
+
+.grade-majority {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: #fff;
+}
+
+.grade-popular {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #fff;
+}
+
+.grade-overwhelming {
+  background: linear-gradient(135deg, #991b1b, #7f1d1d);
+  color: #fff;
+}
+
+/* ===== 반응형 ===== */
+@media (max-width: 576px) {
+  .hero-section { padding: 3rem 0; }
+  .hero-section h1 { font-size: 2rem; }
+  .choice-btn { padding: 1.5rem 1rem !important; }
+}

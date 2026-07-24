@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ question.title }} - 밸런스게임{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+
+      <!-- 뒤로가기 -->
+      <a href="{% url 'games:list' %}" class="btn btn-sm btn-outline-secondary mb-4">
+        <i class="bi bi-arrow-left me-1"></i>목록으로
+      </a>
+
+      <!-- 질문 제목 -->
+      <div class="text-center mb-5">
+        {% if question.category %}
+        <span class="badge bg-primary mb-3">{{ question.category.name }}</span>
+        {% endif %}
+        <h1 class="fw-black" style="font-size:clamp(1.3rem,4vw,2rem); line-height:1.4">
+          {{ question.title }}
+        </h1>
+        {% if question.description %}
+        <p class="text-muted mt-2">{{ question.description }}</p>
+        {% endif %}
+        <p class="text-muted small mt-3">
+          <i class="bi bi-hand-index me-1"></i>하나를 선택해주세요. 선택하면 결과가 공개됩니다.
+        </p>
+      </div>
+
+      <!-- 선택지 -->
+      <form method="post" action="{% url 'games:vote' question.id %}" id="voteForm">
+        {% csrf_token %}
+        <input type="hidden" name="choice" id="choiceInput" value="">
+
+        <div class="row g-4 align-items-center">
+          {% for choice in choices %}
+          <div class="col-5 {% if choice.code == 'B' %}offset-2 offset-md-0{% endif %} col-md-5">
+            <button
+              type="button"
+              class="choice-btn w-100 p-4 p-md-5 rounded-4 border-0 shadow-sm {% if choice.code == 'A' %}choice-btn-a{% else %}choice-btn-b{% endif %}"
+              aria-label="{{ choice.code }} 선택: {{ choice.text }}"
+              data-choice-id="{{ choice.id }}"
+              onclick="selectChoice('{{ choice.id }}')"
+            >
+              <div class="choice-code-badge mb-3 {% if choice.code == 'A' %}badge-a{% else %}badge-b{% endif %}">
+                {{ choice.code }}
+              </div>
+              {% if choice.image %}
+              <img src="{{ choice.image.url }}" alt="{{ choice.text }}" class="img-fluid rounded-3 mb-3">
+              {% endif %}
+              <p class="fw-bold mb-0" style="font-size:clamp(0.9rem,3vw,1.15rem); line-height:1.4">
+                {{ choice.text }}
+              </p>
+            </button>
+          </div>
+          {% if forloop.first %}
+          <div class="col-2 text-center d-none d-md-flex align-items-center justify-content-center">
+            <span class="vs-circle">VS</span>
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+
+        <!-- 모바일 VS 구분자 -->
+        <div class="text-center d-md-none my-3">
+          <span class="vs-circle">VS</span>
+        </div>
+      </form>
+
+      <!-- 통계 -->
+      <div class="text-center mt-4 text-muted small">
+        <i class="bi bi-people me-1"></i>총 {{ question.total_votes }}명 참여
+        &nbsp;·&nbsp;
+        <i class="bi bi-eye me-1"></i>{{ question.view_count }}회 조회
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectChoice(choiceId) {
+  document.getElementById('choiceInput').value = choiceId;
+  document.getElementById('voteForm').submit();
+}
+</script>
+{% endblock %}

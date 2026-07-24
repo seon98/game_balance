@@ -1,0 +1,219 @@
+# ⚡ 밸런스게임 웹사이트
+
+두 가지 선택지 중 하나를 고르는 밸런스게임 웹서비스입니다. 단순 투표 비율 집계를 넘어, 선택 결과를 기반으로 **등급 판정**과 **재미있는 결과 해석**을 제공합니다.
+
+> 이 결과는 재미를 위한 콘텐츠이며 실제 성격이나 심리 상태를 진단하지 않습니다.
+
+---
+
+## 개발 스토리
+
+### 배경
+
+밸런스게임(Balance Game)은 서로 대립되는 두 선택지를 제시하고 사용자가 하나를 선택하는 소셜 콘텐츠입니다. 기존의 단순 투표 비율 표시에서 한 발 더 나아가, **사용자가 선택한 비율에 따라 LEGENDARY_MINORITY → OVERWHELMING 7단계 희귀도 등급**을 부여하고 등급에 맞는 해석 문구를 제공하는 서비스를 기획했습니다.
+
+### v1 → v2 전환
+
+초기 MVP(v1)는 Django 4.2 + 단순 모델로 시작했습니다. 사용자 요구사항이 구체화되면서 v2에서 다음을 전면 재설계했습니다.
+
+| 구분 | v1 | v2 |
+|------|----|----|
+| Python | 3.9 | **3.12** |
+| Django | 4.2 | **5.2 LTS** |
+| 프론트엔드 | 순수 CSS (자체 구현) | **Bootstrap 5** |
+| 모델 | BalanceGame + Choice (2개) | **Category, Question, Choice, Vote, ResultTemplate** |
+| 결과 | 투표 비율만 표시 | **7단계 등급 + 해석 문구 + 키워드 + 공유 문구** |
+| 환경변수 | 하드코딩 | **django-environ (.env)** |
+| 테스트 | 없음 | **16개 테스트 (100% 통과)** |
+
+### 핵심 설계 결정
+
+#### 1. 서비스 계층 분리 (`services.py`)
+
+결과 생성 로직을 뷰에서 완전히 분리했습니다. `ResultGenerator` 추상 인터페이스를 정의하고 `TemplateResultGenerator`를 기본 구현으로 사용합니다. 추후 `AIResultGenerator`를 추가해 AI 해석 기능을 붙일 수 있습니다.
+
+```
+ResultGenerator (추상)
+├── TemplateResultGenerator  ← 현재 기본값 (DB 템플릿 기반)
+└── AIResultGenerator        ← 향후 AI API 연동 (폴백 내장)
+```
+
+#### 2. 등급 경계값 설계
+
+7단계 등급의 경계값이 겹치거나 누락되지 않도록 `get_grade()` 함수에 명시적으로 구현하고 **14가지 경계값 단위 테스트**로 검증했습니다.
+
+```
+0% ≤ x ≤ 15%         → LEGENDARY_MINORITY (전설의 소수파)
+15% < x ≤ 30%        → RARE               (희귀한 선택)
+30% < x ≤ 44%        → MINORITY           (소수 취향)
+44% < x < 56%        → BALANCED           (팽팽한 선택)
+56% ≤ x ≤ 69%        → MAJORITY           (공감받는 선택)
+69% < x ≤ 84%        → POPULAR            (인기 선택)
+84% < x ≤ 100%       → OVERWHELMING       (압도적인 선택)
+```
+
+#### 3. 동시성 안전 투표 집계
+
+`F('vote_count') + 1`과 `transaction.atomic()`을 함께 사용해 다수의 동시 요청이 들어와도 집계 값이 유실되지 않도록 처리했습니다.
+
+```python
+with transaction.atomic():
+    vote, created = Vote.objects.get_or_create(
+        question=question,
+        session_key=session_key,
+        defaults={'choice': choice},
+    )
+    if created:
+        Choice.objects.filter(pk=choice.pk).update(
+            vote_count=F('vote_count') + 1
+        )
+```
+
+#### 4. 중복 투표 방지 이중 잠금
+
+- **애플리케이션 계층**: `get_or_create` + 세션 키 확인
+- **DB 계층**: `UniqueConstraint(fields=['question', 'session_key'])`
+
+두 계층 모두에서 막아 동시 요청 시에도 중복 투표가 발생하지 않습니다.
+
+#### 5. 안전한 템플릿 포맷팅
+
+`ResultTemplate`의 문구에 알 수 없는 변수가 포함되어도 서버 오류가 발생하지 않도록 `_SafeDict`를 활용한 `safe_format()` 함수를 구현했습니다.
+
+---
+
+## 프로젝트 구조
+
+```
+game/
+├── .env                         # 환경변수 (git 제외)
+├── .env.example                 # 환경변수 예시
+├── pyproject.toml
+├── requirements.txt
+├── manage.py
+├── game/                        # Django 프로젝트 설정
+│   ├── settings.py
+│   └── urls.py
+├── 양자택일/                     # 메인 앱
+│   ├── models.py                # 5개 모델
+│   ├── services.py              # 등급 판정, 결과 생성, 투표 처리
+│   ├── forms.py                 # VoteForm
+│   ├── views.py                 # 6개 뷰 클래스
+│   ├── urls.py                  # 7개 URL 패턴
+│   ├── admin.py                 # 관리자 인터페이스
+│   ├── tests.py                 # 16개 단위 테스트
+│   └── management/
+│       └── commands/
+│           └── seed_data.py     # 샘플 데이터 생성 커맨드
+├── templates/
+│   ├── base.html                # Bootstrap 5 공통 레이아웃
+│   ├── index.html               # 메인 페이지
+│   ├── games/
+│   │   ├── list.html            # 게임 목록
+│   │   ├── detail.html          # 질문 상세 (투표)
+│   │   └── result.html          # 투표 결과
+│   └── categories/
+│       └── list.html            # 카테고리별 목록
+└── static/
+    ├── css/main.css             # 커스텀 스타일 (희귀도 배지 등)
+    └── js/main.js               # 클립보드 복사
+```
+
+---
+
+## URL 구조
+
+| URL | 뷰 | 설명 |
+|-----|----|------|
+| `/` | `IndexView` | 메인 페이지 |
+| `/games/` | `GameListView` | 전체 게임 목록 |
+| `/games/random/` | `RandomGameView` | 랜덤 게임 이동 |
+| `/games/<id>/` | `QuestionDetailView` | 질문 상세 + 투표 |
+| `/games/<id>/vote/` | `VoteView` | 투표 처리 (POST 전용) |
+| `/games/<id>/result/` | `ResultView` | 결과 페이지 |
+| `/categories/<slug>/` | `CategoryListView` | 카테고리별 목록 |
+| `/admin/` | Django Admin | 관리자 페이지 |
+
+---
+
+## 결과 페이지 제공 항목
+
+- 질문 제목 및 내 선택
+- 희귀도 배지 (7단계 색상 구분)
+- 결과 제목 + 한 줄 요약
+- 재미있는 결과 해석 (3~5문장)
+- 선택지별 투표 비율 + 프로그레스 바
+- 전체 참여자 수
+- 성향 키워드 3개
+- 공유 문구 + 클립보드 복사 버튼
+- 다음 랜덤 게임 버튼
+
+---
+
+## 실행 방법
+
+```bash
+# 1. 의존성 설치
+pip install -r requirements.txt
+
+# 2. 환경변수 설정
+cp .env.example .env
+# .env 파일에서 SECRET_KEY 수정
+
+# 3. DB 마이그레이션
+python manage.py migrate
+
+# 4. 샘플 데이터 생성 (17개 질문, 21개 결과 템플릿)
+python manage.py seed_data
+
+# 5. 관리자 계정 생성 (선택)
+python manage.py createsuperuser
+
+# 6. 개발 서버 실행
+python manage.py runserver
+```
+
+`http://127.0.0.1:8000` 접속
+
+---
+
+## 테스트 실행
+
+```bash
+python manage.py test 양자택일 --verbosity=2
+```
+
+16개 테스트 항목:
+
+1. 투표 저장 테스트
+2. 중복투표 방지 테스트 (애플리케이션 레벨)
+3. DB UniqueConstraint 제약 테스트
+4. vote_count 증가 테스트
+5. 중복 투표 시 vote_count 불변 테스트
+6. 선택지 비율 계산 테스트
+7. 0표 시 50% 반환 테스트
+8. total_votes 0 반환 테스트
+9. 등급 경계값 14가지 테스트
+10. 잘못된 percentage 예외 테스트
+11. 기본 결과 문구 폴백 테스트
+12. 비활성 질문 투표 404 테스트
+13. 비활성 질문 상세 404 테스트
+14. GET 요청 투표 차단 테스트
+15. 다중 세션 집계 정확성 테스트
+16. 투표 후 등급/비율 정확성 테스트
+
+---
+
+## 향후 AI 기능 확장
+
+`AIResultGenerator`를 구현해 Claude / OpenAI API와 연동할 수 있습니다.
+
+```python
+class AIResultGenerator(ResultGenerator):
+    def generate(self, question, choice, percentage, total_votes, grade) -> ResultData:
+        # AI API 호출 → JSON 파싱 → ResultData 반환
+        # 실패 시 자동으로 TemplateResultGenerator 폴백
+        ...
+```
+
+AI에 전달할 데이터는 질문 제목, 선택 답변, 비율, 투표 수, 카테고리로 제한하며 세션 키, IP 등 개인정보는 전달하지 않습니다.
