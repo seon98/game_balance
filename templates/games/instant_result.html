@@ -9,16 +9,42 @@
       <div class="col-lg-8">
         <div class="text-center mb-4">
           <span class="badge bg-primary mb-3">{{ instant_game.title }}</span>
-          <p class="eyebrow mb-2">YOUR KEYWORD CHOICE TYPE</p>
+          <p class="eyebrow mb-2">YOUR CHOICE MBTI CHARACTER</p>
           <h1 class="display-5 fw-black mb-3">
-            {{ set_result.display_name }}님은<br>
-            <span class="text-primary">{{ set_result.type_name }}</span>입니다
+            {{ set_result.display_name }}님의 선택 속<br>
+            <span class="text-primary">숨은 캐릭터는?</span>
           </h1>
-          <p class="lead text-muted mb-0">{{ set_result.type_summary }}</p>
         </div>
 
-        <div class="card result-type-card border-0 shadow rounded-4">
+        <div class="card mbti-result-card border-0 shadow rounded-4">
+          <div class="card-body p-4 p-md-5 text-center">
+            <span class="badge rounded-pill bg-dark mb-3">
+              {% if mbti_result.source == 'ai' %}
+              <i class="bi bi-stars me-1"></i>AI 선택 기록 분석
+              {% else %}
+              <i class="bi bi-lightning-charge me-1"></i>선택 기록 분석
+              {% endif %}
+            </span>
+            <div class="mbti-code mb-3" aria-label="선택 패턴 MBTI {{ mbti_result.mbti }}">
+              {% for letter in mbti_result.mbti %}
+              <span>{{ letter }}</span>
+              {% endfor %}
+            </div>
+            <h2 class="h3 fw-black mb-3">“{{ mbti_result.title }}”</h2>
+            <p class="mbti-description text-muted mb-3">{{ mbti_result.description }}</p>
+            <p class="x-small text-muted mb-0">
+              공식 MBTI 검사나 심리 진단이 아닌, 이번 선택 기록을 재미있게 해석한 캐릭터입니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card result-type-card border-0 shadow rounded-4 mt-4">
           <div class="card-body p-4 p-md-5">
+            <div class="text-center mb-4">
+              <p class="eyebrow mb-2">A/B CHOICE RHYTHM</p>
+              <h2 class="h4 fw-black mb-2">{{ set_result.type_name }}</h2>
+              <p class="text-muted mb-0">{{ set_result.type_summary }}</p>
+            </div>
             <div class="text-center mb-4">
               {% for keyword in set_result.keywords %}
               <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3 py-2 mx-1">#{{ keyword }}</span>
@@ -58,7 +84,8 @@
 
             <div class="share-box rounded-3 p-3 mt-4 text-center">
               <p id="shareText" class="fw-bold mb-3">
-                나는 양자택일 {{ instant_game.title }}에서 ‘{{ set_result.type_name }}’! 당신은 어떤 유형?
+                나는 양자택일 {{ instant_game.title }}에서 {{ mbti_result.mbti }}
+                ‘{{ mbti_result.title }}’! 당신의 선택 캐릭터는?
               </p>
               <button type="button" class="btn btn-outline-secondary btn-sm" id="copyBtn" onclick="copyShareText()">
                 <i class="bi bi-clipboard me-1"></i>결과 복사

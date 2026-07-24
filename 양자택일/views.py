@@ -33,6 +33,7 @@ from .forms import (
 )
 from .models import Category, Choice, GameSet, Question, ResultGrade, Vote
 from .moderation import requires_reference
+from .openai_mbti_analyzer import analyze_mbti_with_fallback
 from .question_generator import generate_question_drafts_with_fallback
 from .services import (
     TemplateResultGenerator,
@@ -404,6 +405,7 @@ class InstantGameAnswerView(View):
             )
 
         answers[question_index] = choice_code
+        game.pop('mbti_result', None)
         request.session.modified = True
         if question_number < len(questions):
             return redirect(
@@ -451,8 +453,23 @@ class InstantGameResultView(TemplateView):
             if self.request.user.is_authenticated
             else '플레이어'
         )
+        mbti_result = game.get('mbti_result')
+        if (
+            not isinstance(mbti_result, dict)
+            or not {'mbti', 'title', 'description', 'source'}.issubset(mbti_result)
+        ):
+            mbti_result = analyze_mbti_with_fallback(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                timeout=settings.OPENAI_TIMEOUT,
+                questions=game['questions'],
+                choice_codes=answers,
+            )
+            game['mbti_result'] = mbti_result
+            self.request.session.modified = True
         context.update({
             'instant_game': game,
+            'mbti_result': mbti_result,
             'set_result': build_choice_pattern_result(
                 display_name=display_name,
                 choice_codes=answers,

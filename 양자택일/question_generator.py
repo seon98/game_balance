@@ -265,6 +265,22 @@ def generate_question_drafts(
             if requires_reference(text):
                 raise ValidationError('검증이 필요한 표현은 자동 문항으로 만들 수 없습니다.')
 
+    axis_plan = (
+        ('E/I', 'E', 'I'),
+        ('S/N', 'S', 'N'),
+        ('T/F', 'T', 'F'),
+        ('J/P', 'J', 'P'),
+    )
+    draft_payloads = []
+    for index, draft in enumerate(drafts):
+        mbti_axis, choice_a_trait, choice_b_trait = axis_plan[index % len(axis_plan)]
+        draft_payloads.append({
+            **asdict(draft),
+            'mbti_axis': mbti_axis,
+            'choice_a_trait': choice_a_trait,
+            'choice_b_trait': choice_b_trait,
+        })
+
     keyword_label = ' · '.join(keywords[:3])
     return {
         'title_suggestion': f'{keyword_label} 선택 보고서',
@@ -272,7 +288,7 @@ def generate_question_drafts(
             f'{category_name} 카테고리에서 {keyword_label}에 관한 취향을 '
             f'{count}가지 양자택일로 확인합니다.'
         ),
-        'drafts': [asdict(draft) for draft in drafts],
+        'drafts': draft_payloads,
     }
 
 

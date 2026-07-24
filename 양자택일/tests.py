@@ -24,6 +24,11 @@ from .openai_question_generator import (
     GeneratedQuestionSet,
     generate_openai_question_drafts,
 )
+from .openai_mbti_analyzer import (
+    GeneratedMbtiAnalysis,
+    analyze_mbti_with_fallback,
+    analyze_openai_mbti,
+)
 from .question_generator import generate_question_drafts_with_fallback
 from .services import (
     ResultData,
@@ -45,6 +50,28 @@ def make_question(title: str = '테스트 질문', active: bool = True) -> Quest
     Choice.objects.create(question=question, code='A', text='선택지 A')
     Choice.objects.create(question=question, code='B', text='선택지 B')
     return question
+
+
+def make_generated_question_draft(
+    index: int,
+    *,
+    unsafe: bool = False,
+) -> dict[str, str]:
+    axis, choice_a_trait, choice_b_trait = (
+        ('E/I', 'E', 'I'),
+        ('S/N', 'S', 'N'),
+        ('T/F', 'T', 'F'),
+        ('J/P', 'J', 'P'),
+    )[(index - 1) % 4]
+    return {
+        'title': f'여행 질문 {index}',
+        'description': f'여행 상황 {index}에서 선택하세요.',
+        'choice_a': '19금 여행을 선택한다' if unsafe else f'여행 선택 A-{index}',
+        'choice_b': f'여행 선택 B-{index}',
+        'mbti_axis': axis,
+        'choice_a_trait': choice_a_trait,
+        'choice_b_trait': choice_b_trait,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -781,12 +808,7 @@ class QuestionDraftGenerationTest(TestCase):
             title_suggestion='여행 선택 보고서',
             description_suggestion='여행 취향을 일곱 가지 선택으로 알아봅니다.',
             drafts=[
-                {
-                    'title': f'여행 질문 {index}',
-                    'description': f'여행 상황 {index}에서 선택하세요.',
-                    'choice_a': f'여행 선택 A-{index}',
-                    'choice_b': f'여행 선택 B-{index}',
-                }
+                make_generated_question_draft(index)
                 for index in range(1, 8)
             ],
         )
@@ -821,12 +843,7 @@ class QuestionDraftGenerationTest(TestCase):
             title_suggestion='여행 선택 보고서',
             description_suggestion='여행 취향을 알아봅니다.',
             drafts=[
-                {
-                    'title': f'여행 질문 {index}',
-                    'description': f'여행 상황 {index}에서 선택하세요.',
-                    'choice_a': '19금 여행을 선택한다' if index == 1 else f'여행 선택 A-{index}',
-                    'choice_b': f'여행 선택 B-{index}',
-                }
+                make_generated_question_draft(index, unsafe=index == 1)
                 for index in range(1, 8)
             ],
         )
@@ -844,6 +861,112 @@ class QuestionDraftGenerationTest(TestCase):
                 keywords=['여행'],
                 count=7,
                 category_name='여행',
+                client=client,
+            )
+
+
+class OpenAiMbtiAnalysisTest(TestCase):
+    def setUp(self) -> None:
+        self.questions = [
+            make_generated_question_draft(index)
+            for index in range(1, 8)
+        ]
+        self.choice_codes = ['A', 'B', 'A', 'B', 'A', 'B', 'A']
+
+    def test_local_fallback_scores_internal_mbti_traits(self) -> None:
+        result = analyze_mbti_with_fallback(
+            api_key='',
+            model='gpt-5.6',
+            timeout=2.0,
+            questions=self.questions,
+            choice_codes=self.choice_codes,
+        )
+
+        self.assertEqual(result['mbti'], 'ENTP')
+        self.assertEqual(result['source'], 'local')
+        self.assertTrue(result['title'])
+        self.assertIn('여행 질문 1', result['description'])
+
+    def test_structured_openai_mbti_analysis_is_parsed_without_network(self) -> None:
+        generated = GeneratedMbtiAnalysis(
+            mbti='ENTP',
+            title='평범한 답은 일단 의심하는 반전 토론가',
+            description=(
+                '여행 질문 1에서는 실행을, 여행 질문 2에서는 가능성을 골랐습니다. '
+                '고민하는 척하지만 결국 새로운 문을 먼저 여는 선택 패턴입니다.'
+            ),
+        )
+
+        class FakeResponses:
+            def __init__(self) -> None:
+                self.arguments = {}
+
+            def parse(self, **kwargs):
+                self.arguments = kwargs
+                return SimpleNamespace(output_parsed=generated)
+
+        responses = FakeResponses()
+        answer_records = [
+            {
+                'question': question['title'],
+                'selected_option': question[
+                    'choice_a' if code == 'A' else 'choice_b'
+                ],
+                'mbti_axis': question['mbti_axis'],
+                'selected_trait': question[
+                    'choice_a_trait' if code == 'A' else 'choice_b_trait'
+                ],
+            }
+            for question, code in zip(
+                self.questions,
+                self.choice_codes,
+                strict=True,
+            )
+        ]
+
+        result = analyze_openai_mbti(
+            api_key='test-key',
+            model='gpt-5.6',
+            timeout=2.0,
+            answer_records=answer_records,
+            client=SimpleNamespace(responses=responses),
+        )
+
+        self.assertEqual(result['mbti'], 'ENTP')
+        self.assertEqual(result['source'], 'ai')
+        self.assertIs(
+            responses.arguments['text_format'],
+            GeneratedMbtiAnalysis,
+        )
+        self.assertFalse(responses.arguments['store'])
+
+    def test_unsafe_openai_mbti_analysis_is_rejected(self) -> None:
+        generated = GeneratedMbtiAnalysis(
+            mbti='ENTP',
+            title='19금 성향 분석',
+            description='선택을 재미있게 해석했습니다.',
+        )
+        client = SimpleNamespace(
+            responses=SimpleNamespace(
+                parse=lambda **_kwargs: SimpleNamespace(output_parsed=generated),
+            ),
+        )
+        answer_records = [
+            {
+                'question': f'질문 {index}',
+                'selected_option': f'선택 {index}',
+                'mbti_axis': 'E/I',
+                'selected_trait': 'E',
+            }
+            for index in range(1, 8)
+        ]
+
+        with self.assertRaises(ValidationError):
+            analyze_openai_mbti(
+                api_key='test-key',
+                model='gpt-5.6',
+                timeout=2.0,
+                answer_records=answer_records,
                 client=client,
             )
 
@@ -975,11 +1098,12 @@ class InstantGameFlowTest(TestCase):
             fetch_redirect_response=False,
         )
         result_page = self.client.get(reverse('games:instant_result'))
-        self.assertContains(result_page, '플레이어님은')
+        self.assertContains(result_page, '플레이어님의 선택 속')
         self.assertContains(result_page, 'A 4회')
         self.assertContains(result_page, 'B 3회')
         self.assertContains(result_page, '코믹 해석')
         self.assertContains(result_page, '패턴 분석')
+        self.assertContains(result_page, '공식 MBTI 검사나 심리 진단이 아닌')
         self.assertFalse(GameSet.objects.exists())
         self.assertFalse(Question.objects.exists())
         self.assertFalse(Vote.objects.exists())
@@ -1048,6 +1172,44 @@ class InstantGameFlowTest(TestCase):
             reverse('games:instant_play', kwargs={'question_number': 2}),
             fetch_redirect_response=False,
         )
+
+    @patch('양자택일.views.analyze_mbti_with_fallback')
+    def test_mbti_result_is_cached_until_an_answer_changes(self, mock_analyze) -> None:
+        mock_analyze.return_value = {
+            'mbti': 'ENTP',
+            'title': '반대편 문부터 여는 토론가',
+            'description': '선택 기록 두 개를 근거로 만든 재미용 분석입니다.',
+            'source': 'ai',
+        }
+        self.generate_game('여행')
+        for question_number in range(1, 8):
+            self.client.post(
+                reverse(
+                    'games:instant_answer',
+                    kwargs={'question_number': question_number},
+                ),
+                {'choice': 'A' if question_number % 2 else 'B'},
+            )
+
+        first_result = self.client.get(reverse('games:instant_result'))
+        second_result = self.client.get(reverse('games:instant_result'))
+
+        self.assertContains(first_result, 'ENTP')
+        self.assertContains(first_result, '반대편 문부터 여는 토론가')
+        self.assertEqual(second_result.status_code, 200)
+        mock_analyze.assert_called_once()
+
+        self.client.post(
+            reverse(
+                'games:instant_answer',
+                kwargs={'question_number': 7},
+            ),
+            {'choice': 'B'},
+        )
+        refreshed_result = self.client.get(reverse('games:instant_result'))
+
+        self.assertEqual(refreshed_result.status_code, 200)
+        self.assertEqual(mock_analyze.call_count, 2)
 
 
 class UserGameModerationTest(TestCase):

@@ -920,6 +920,58 @@ body {
   content: '';
 }
 
+.mbti-result-card {
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 8% 10%, rgba(220, 53, 69, 0.09), transparent 16rem),
+    radial-gradient(circle at 92% 90%, rgba(13, 110, 253, 0.11), transparent 18rem),
+    #fff;
+}
+
+.mbti-result-card::before {
+  display: block;
+  height: 0.5rem;
+  background: linear-gradient(90deg, #dc3545, #7c4dff, #0d6efd);
+  content: '';
+}
+
+.mbti-code {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(0.45rem, 2vw, 0.8rem);
+}
+
+.mbti-code span {
+  display: grid;
+  width: clamp(3.7rem, 12vw, 5.2rem);
+  height: clamp(3.7rem, 12vw, 5.2rem);
+  place-items: center;
+  border: 1px solid rgba(42, 60, 112, 0.09);
+  border-radius: 1.2rem;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1a2d6f;
+  font-size: clamp(1.7rem, 6vw, 2.5rem);
+  font-weight: 900;
+  box-shadow: 0 0.7rem 1.8rem rgba(31, 50, 102, 0.1);
+}
+
+.mbti-code span:nth-child(2),
+.mbti-code span:nth-child(3) {
+  color: #6f42c1;
+}
+
+.mbti-code span:last-child {
+  color: #0d6efd;
+}
+
+.mbti-description {
+  max-width: 42rem;
+  margin-inline: auto;
+  line-height: 1.9;
+  word-break: keep-all;
+}
+
 .choice-distribution-bar {
   display: flex;
   height: 1rem;
